@@ -1,4 +1,11 @@
 #![forbid(unsafe_code)]
+#![feature(decl_macro)]
+#[macro_use] extern crate rocket;
+
+mod app;
+
+use rocket::*;
+
 
 use anyhow::{anyhow, Result};
 use console::{style, Style, Term};
@@ -17,21 +24,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-struct App {
-    voltage: u64,
-    units: String
-}
 
-impl App {
-    fn new(units: String) -> Self {
-        App {
-            voltage: 0,
-            units
-        }
-    }
 
-    #[post()]
-}
+
 
 fn better_theme() -> ColorfulTheme {
     ColorfulTheme {
@@ -77,6 +72,17 @@ fn main() -> Result<()> {
 
     let term = Term::stdout();
     let rate_calc = RateCalc::new();
+
+    // Start Rocket and initialize app
+    let rocket = rocket::ignite()
+        .mount("/", routes![app::get_data])
+        .manage(
+            app::App::new("Yes".to_string(), ch_units.clone())
+        );
+    
+    let app: State<app::App> = State::from(&rocket).expect("managing `App`");
+    
+    rocket.launch();
 
     let _sub = streaming_device
         .events
@@ -304,8 +310,7 @@ fn display_capture_stats(
 
         println!(
             "{} @ {}",
-            format!("{}", st
-            yle("Streaming").bold()),
+            format!("{}", style("Streaming").bold()),
             format!(
                 "{}",
                 style(format!(
