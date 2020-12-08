@@ -7,7 +7,7 @@ use pico_sdk::{
 use std::collections::HashMap;
 
 pub struct AppState {
-    pub voltage: Mutex<f64>,
+    pub voltage: Mutex<Vec<f64>>,
     pub voltage_units: Mutex<String>,
     pub channel_configuration: Mutex<HashMap<PicoChannel, String>>,
 }
@@ -15,7 +15,7 @@ pub struct AppState {
 impl AppState {
     pub fn new<T>(voltage_units: &T, channel_configuration: HashMap<PicoChannel, String>) -> Self where T: ToString + ?Sized{
         AppState {
-            voltage: Mutex::new(0.0),
+            voltage: Mutex::new(vec![0.0]),
             voltage_units: Mutex::new(voltage_units.to_string()),
             channel_configuration: Mutex::new(channel_configuration),
         }
@@ -32,10 +32,12 @@ pub fn index(state: actix_web::web::Data<Mutex<AppState>>) -> HttpResponse {
 #[get("/data")]
 pub fn get_data(state: actix_web::web::Data<Mutex<AppState>>) -> HttpResponse {
     let app_state = state.lock().unwrap();
-    let voltage = app_state.voltage_units.lock().unwrap();
+    let mut voltage = app_state.voltage.lock().unwrap();
     let units = app_state.voltage_units.lock().unwrap();
 
-    let result = format!(r#"{{ "voltage": {}, "units": "{}" }}"#, voltage, units);
+    let result = format!(r#"{{ "voltage": {}, "units": "{}" }}"#, serde_json::to_string(&voltage.iter().map(|f| f.to_owned()).collect::<Vec<f64>>()).unwrap(), units);
+
+    *voltage = vec!();
 
     HttpResponse::Ok().body(result)
 }

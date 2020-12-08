@@ -17,10 +17,14 @@ use pico_sdk::{
 
 use signifix::metric;
 
-use std::{collections::{HashMap, VecDeque}, convert::TryFrom, sync::{Arc, Mutex}};
+use std::{
+    collections::{HashMap, VecDeque},
+    convert::TryFrom,
+    sync::{Arc, Mutex},
+};
 
-use actix_web::{web, middleware, HttpServer, App};
-use crate::app::{AppState, get_data, index};
+use crate::app::{get_data, index, AppState};
+use actix_web::{middleware, web, App, HttpServer};
 
 fn better_theme() -> ColorfulTheme {
     ColorfulTheme {
@@ -71,7 +75,8 @@ async fn main() -> Result<()> {
             .wrap(middleware::Logger::default())
             .service(get_data)
             .service(index)
-    }).bind("127.0.0.1:8000")?;
+    })
+    .bind("127.0.0.1:8000")?;
 
     let enumerator = DeviceEnumerator::with_resolution(cache_resolution());
     let device = select_device(&enumerator)?;
@@ -88,7 +93,7 @@ async fn main() -> Result<()> {
     let _sub = streaming_device
         .events
         .subscribe_on_thread(Box::new(move |event| {
-            display_capture_stats(event, &term, &rate_calc, &ch_units);
+            display_capture_stats(event, &term, &rate_calc, &ch_units, state.clone());
         }));
 
     println!("Press Enter to stop streaming");
@@ -284,6 +289,7 @@ fn display_capture_stats(
     term: &Term,
     rate_calc: &RateCalc,
     ch_units: &HashMap<PicoChannel, String>,
+    state: web::Data<Mutex<AppState>>
 ) {
     if let StreamingEvent::Data {
         length: _,
@@ -326,7 +332,7 @@ fn display_capture_stats(
             let ch_col = get_colour(ch);
 
             let value = match metric::Signifix::try_from(first) {
-                Ok(v) => format!("{}", v),
+                Ok(v) => { format!("{}", v) },
                 Err(metric::Error::OutOfLowerBound(_)) => "0".to_string(),
                 _ => panic!("unknown error"),
             };
@@ -336,6 +342,8 @@ fn display_capture_stats(
                 format!("{}", ch_col.apply_to(ch).bold()),
                 format!("{}", style(format!("{} {}", value, unit)).bold())
             );
+
+
         }
     };
 }
