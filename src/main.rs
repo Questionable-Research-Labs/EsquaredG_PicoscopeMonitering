@@ -1,15 +1,12 @@
 #![forbid(unsafe_code)]
-#![feature(decl_macro)]
-#[macro_use] extern crate rocket;
-
 mod app;
 
-use rocket::*;
-
-
 use anyhow::{anyhow, Result};
+
 use console::{style, Style, Term};
+
 use dialoguer::{theme::ColorfulTheme, Select};
+
 use pico_sdk::{
     common::{PicoChannel, PicoRange},
     device::{ChannelDetails, PicoDevice},
@@ -17,16 +14,13 @@ use pico_sdk::{
     enumeration::{DeviceEnumerator, EnumerationError},
     streaming::{StreamingEvent, SubscribeToReader, ToStreamDevice},
 };
+
 use signifix::metric;
-use std::{
-    collections::{HashMap, VecDeque},
-    convert::TryFrom,
-    sync::{Arc, Mutex},
-};
 
+use std::{collections::{HashMap, VecDeque}, convert::TryFrom, sync::{Arc, Mutex}};
 
-
-
+use actix_web::{web, middleware, HttpServer, App};
+use crate::app::{AppState, get_data, index};
 
 fn better_theme() -> ColorfulTheme {
     ColorfulTheme {
@@ -62,7 +56,23 @@ impl RateCalc {
     }
 }
 
-fn main() -> Result<()> {
+#[actix_web::main]
+async fn main() -> Result<()> {
+    std::env::set_var("RUST_LOG", "actix_web=info");
+    env_logger::init();
+
+    // Setup actix webserver
+    let state = web::Data::new(Mutex::new(AppState::new("no", HashMap::new())));
+    let state2 = state.clone();
+
+    let web_server = HttpServer::new(move || {
+        App::new()
+            .app_data(state2.clone())
+            .wrap(middleware::Logger::default())
+            .service(get_data)
+            .service(index)
+    }).bind("127.0.0.1:8000")?;
+
     let enumerator = DeviceEnumerator::with_resolution(cache_resolution());
     let device = select_device(&enumerator)?;
     let ch_units = configure_channels(&device);
@@ -73,16 +83,7 @@ fn main() -> Result<()> {
     let term = Term::stdout();
     let rate_calc = RateCalc::new();
 
-    // Start Rocket and initialize app
-    let rocket = rocket::ignite()
-        .mount("/", routes![app::get_data])
-        .manage(
-            app::App::new("Yes".to_string(), ch_units.clone())
-        );
-    
-    let app: State<app::App> = State::from(&rocket).expect("managing `App`");
-    
-    rocket.launch();
+    web_server.run();
 
     let _sub = streaming_device
         .events

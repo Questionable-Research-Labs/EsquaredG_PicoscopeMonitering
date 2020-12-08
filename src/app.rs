@@ -1,40 +1,41 @@
-use rocket::*;
-use rocket::response::content::Json;
-
-use std::collections::{HashMap};
+use actix_web::{get, HttpResponse};
+use std::sync::Mutex;
 
 use pico_sdk::{
-    common::{PicoChannel, PicoRange},
-    device::{ChannelDetails, PicoDevice},
-    download::{cache_resolution, download_drivers_to_cache},
-    enumeration::{DeviceEnumerator, EnumerationError},
-    streaming::{StreamingEvent, SubscribeToReader, ToStreamDevice},
+    common::{PicoChannel},
 };
+use std::collections::HashMap;
 
-pub struct App {
-    pub voltage: u64,
-	pub voltage_units: String,
-	pub channel_configuration: HashMap<PicoChannel, String>,
+pub struct AppState {
+    pub voltage: Mutex<f64>,
+    pub voltage_units: Mutex<String>,
+    pub channel_configuration: Mutex<HashMap<PicoChannel, String>>,
 }
 
-impl App {
-    pub fn new(voltage_units: String, channel_configuration: HashMap<PicoChannel, String>) -> Self {    
-        App {
-            voltage: 0,
-			voltage_units,
-			channel_configuration
+impl AppState {
+    pub fn new<T>(voltage_units: &T, channel_configuration: HashMap<PicoChannel, String>) -> Self where T: ToString + ?Sized{
+        AppState {
+            voltage: Mutex::new(0.0),
+            voltage_units: Mutex::new(voltage_units.to_string()),
+            channel_configuration: Mutex::new(channel_configuration),
         }
-	}
+    }
 }
 
+#[get("/")]
+pub fn index(state: actix_web::web::Data<Mutex<AppState>>) -> HttpResponse {
+    let result = format!(r#"{{ "version": 0.1.0}}"#);
+
+    HttpResponse::Ok().body(result)
+}
 
 #[get("/data")]
-pub fn get_data(state: State<App>) -> Json<String> {
-    let result = format!(
-		r#"{{
-        value: {},
-        voltage_units: {}
-		}}"#,
-		state.voltage.to_string(), state.voltage_units.to_owned());
-    return Json(result)
+pub fn get_data(state: actix_web::web::Data<Mutex<AppState>>) -> HttpResponse {
+    let app_state = state.lock().unwrap();
+    let voltage = app_state.voltage_units.lock().unwrap();
+    let units = app_state.voltage_units.lock().unwrap();
+
+    let result = format!(r#"{{ "voltage": {}, "units": "{}" }}"#, voltage, units);
+
+    HttpResponse::Ok().body(result)
 }
