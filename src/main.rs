@@ -71,9 +71,9 @@ async fn main() -> Result<()> {
 
     let web_server = HttpServer::new(move || {
         App::new()
+            .service(web::scope("/api").service(get_data))
             .app_data(state2.clone())
             .wrap(middleware::Logger::default())
-            .service(get_data)
             .service(index)
     })
     .bind("127.0.0.1:8000")?;
@@ -289,7 +289,7 @@ fn display_capture_stats(
     term: &Term,
     rate_calc: &RateCalc,
     ch_units: &HashMap<PicoChannel, String>,
-    state: web::Data<Mutex<AppState>>
+    state: web::Data<Mutex<AppState>>,
 ) {
     if let StreamingEvent::Data {
         length: _,
@@ -313,37 +313,39 @@ fn display_capture_stats(
 
         data.sort_by(|a, b| a.0.cmp(&b.0));
 
-        term.clear_last_lines(data.len() + 1).unwrap();
+        // term.clear_last_lines(data.len() + 1).unwrap();
 
-        println!(
-            "{} @ {}",
-            format!("{}", style("Streaming").bold()),
-            format!(
-                "{}",
-                style(format!(
-                    "{}S/s",
-                    metric::Signifix::try_from(rate_calc.get_value(samples)).unwrap()
-                ))
-                .bold()
-            )
-        );
+        // println!(
+        //     "{} @ {}",
+        //     format!("{}", style("Streaming").bold()),
+        //     format!(
+        //         "{}",
+        //         style(format!(
+        //             "{}S/s",
+        //             metric::Signifix::try_from(rate_calc.get_value(samples)).unwrap()
+        //         ))
+        //         .bold()
+        //     )
+        // );
 
         for (ch, _, first, unit) in data {
             let ch_col = get_colour(ch);
 
-            let value = match metric::Signifix::try_from(first) {
-                Ok(v) => { format!("{}", v) },
-                Err(metric::Error::OutOfLowerBound(_)) => "0".to_string(),
-                _ => panic!("unknown error"),
-            };
+            // let value = match metric::Signifix::try_from(first) {
+            //     // Ok(v) => { state.lock().unwrap().voltage.lock().unwrap().push(v.integer()); format!("{}", v) },
+            //     Ok(v) => {
+            //         let mut stateUnlocked = state.lock().unwrap();
 
-            println!(
-                "  {} - {}",
-                format!("{}", ch_col.apply_to(ch).bold()),
-                format!("{}", style(format!("{} {}", value, unit)).bold())
-            );
+            //     },
+            //     Err(metric::Error::OutOfLowerBound(_)) => "0".to_string(),
+            //     _ => panic!("unknown error"),
+            // };
 
-
+            // println!(
+            //     "  {} - {}",
+            //     format!("{}", ch_col.apply_to(ch).bold()),
+            //     format!("{}", style(format!("{} {}", value, unit)).bold())
+            // );
         }
     };
 }
