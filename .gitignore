@@ -13,3 +13,5 @@ Cargo.lock
 .vscode/
 .idea/
 node_modules/
+
+static/js/bundle.*
