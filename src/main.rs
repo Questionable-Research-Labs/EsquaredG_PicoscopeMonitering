@@ -23,8 +23,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::app::{get_data, index, AppState};
-use actix_web::{middleware, web, App, HttpServer};
+use crate::app::{get_data, index, api_index, AppState};
+use actix_web::{middleware, web, App, HttpServer, HttpResponse};
 
 fn better_theme() -> ColorfulTheme {
     ColorfulTheme {
@@ -71,10 +71,11 @@ async fn main() -> Result<()> {
 
     let web_server = HttpServer::new(move || {
         App::new()
-            .service(web::scope("/api").service(get_data))
+            .service(index)
+            .service(web::scope("/api").service(get_data).service(api_index))
+            .service(actix_files::Files::new("/", "./static"))
             .app_data(state2.clone())
             .wrap(middleware::Logger::default())
-            .service(index)
     })
     .bind("127.0.0.1:8000")?;
 
@@ -112,6 +113,7 @@ fn select_device(enumerator: &DeviceEnumerator) -> Result<PicoDevice> {
         println!("Searching for devices...",);
 
         let devices = enumerator.enumerate();
+        
 
         if devices.is_empty() {
             return Err(anyhow!("{}", style("No Pico devices found").red()));

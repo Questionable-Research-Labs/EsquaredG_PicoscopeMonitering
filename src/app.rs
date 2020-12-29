@@ -1,6 +1,8 @@
 use actix_web::{get, HttpResponse};
 use std::sync::Mutex;
 
+use std::io::prelude::*;
+
 use serde_json;
 
 use pico_sdk::{
@@ -25,7 +27,12 @@ impl AppState {
 }
 
 #[get("/")]
-pub fn index(state: actix_web::web::Data<Mutex<AppState>>) -> HttpResponse {
+pub fn index() -> HttpResponse {
+    HttpResponse::Ok().body(std::fs::read_to_string("./static/index.html").unwrap())
+}
+
+#[get("/")]
+pub fn api_index(state: actix_web::web::Data<Mutex<AppState>>) -> HttpResponse {
     let result = format!(r#"{{ "version": 0.1.0}}"#);
 
     HttpResponse::Ok().body(result)
