@@ -332,7 +332,10 @@ fn display_capture_stats(
             let ch_col = get_colour(ch);
 
             let value = match metric::Signifix::try_from(first) {
-                Ok(v) => { state.lock().unwrap().voltage.push(first); format!("{}", v) },
+                Ok(v) => { 
+                    let mut state_unlocked = state.lock().unwrap();
+                    let start_time = state_unlocked.start_time.clone();
+                    state_unlocked.voltage.push((first, start_time.elapsed().as_millis())); format!("{}", v) },
                 // Ok(v) => {
                 //     let mut stateUnlocked = state.lock().unwrap();
 

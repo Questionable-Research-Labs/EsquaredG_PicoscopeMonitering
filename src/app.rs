@@ -9,15 +9,17 @@ use pico_sdk::{
 use std::collections::HashMap;
 
 pub struct AppState {
-    pub voltage: Vec<f32>,
+    pub voltage: Vec<(f32, u128)>,
     pub channel_configuration: HashMap<PicoChannel, String>,
+    pub start_time: std::time::Instant,
 }
 
 impl AppState {
     pub fn new(channel_configuration: HashMap<PicoChannel, String>) -> Self{
         AppState {
-            voltage: vec![0.0],
+            voltage: vec!(),
             channel_configuration: channel_configuration,
+            start_time: std::time::Instant::now(),
         }
     }
 }
@@ -37,7 +39,7 @@ pub fn get_data(state: actix_web::web::Data<Mutex<AppState>>) -> HttpResponse {
     app_state.voltage.drain(0..voltage.len());
     drop(app_state);
 
-    let json_voltage = match serde_json::to_string(&voltage.iter().map(|f| f.to_owned()).collect::<Vec<f32>>()) {
+    let json_voltage = match serde_json::to_string(&voltage.iter().map(|f| f.to_owned()).collect::<Vec<(f32,u128)>>()) {
         Ok(voltage) => voltage,
         Err(error) => {
             return HttpResponse::InternalServerError().body(
