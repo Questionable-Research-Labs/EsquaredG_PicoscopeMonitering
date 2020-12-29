@@ -1,0 +1,17 @@
+$text-colour: #d4d4d4;
+$background-color: rgb(15, 15, 15);
+
+body {
+    // background-color: $background-color;
+    min-height: 100vh;
+}
+
+.content {
+    padding: 1em;
+    .waveform-canvas {
+        min-height: 200px;
+        width: 100%;
+        position: absolute;
+        bottom: 0;
+    }
+}

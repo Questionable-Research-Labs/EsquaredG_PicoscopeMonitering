@@ -1,0 +1,15 @@
+body {
+  min-height: 100vh;
+}
+
+.content {
+  padding: 1em;
+}
+
+.content .waveform-canvas {
+  min-height: 200px;
+  width: 100%;
+  position: absolute;
+  bottom: 0;
+}
+/*# sourceMappingURL=main.css.map */

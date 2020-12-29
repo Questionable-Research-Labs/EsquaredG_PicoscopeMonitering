@@ -1,9 +1,12 @@
 import $ from 'jquery';
+import { context } from 'cubism-es';
 
-$(document).ready(() => {
+
+let current_voltage_points = []
+
+$(function () {
     let interval = setInterval(async () => {
         let response = await $.get("api/data");
-        // TODO: Do shit with the data, for now it can just vibe
-    }, 200);
-    
+        current_voltage_points.push(response);
+    }, 400);
 });
