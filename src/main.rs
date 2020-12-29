@@ -66,7 +66,7 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     // Setup actix webserver
-    let state = web::Data::new(Mutex::new(AppState::new("no", HashMap::new())));
+    let state = web::Data::new(Mutex::new(AppState::new(HashMap::new())));
     let state2 = state.clone();
 
     let web_server = HttpServer::new(move || {
@@ -331,21 +331,21 @@ fn display_capture_stats(
         for (ch, _, first, unit) in data {
             let ch_col = get_colour(ch);
 
-            // let value = match metric::Signifix::try_from(first) {
-            //     // Ok(v) => { state.lock().unwrap().voltage.lock().unwrap().push(v.integer()); format!("{}", v) },
-            //     Ok(v) => {
-            //         let mut stateUnlocked = state.lock().unwrap();
+            let value = match metric::Signifix::try_from(first) {
+                Ok(v) => { state.lock().unwrap().voltage.push(first); format!("{}", v) },
+                // Ok(v) => {
+                //     let mut stateUnlocked = state.lock().unwrap();
 
-            //     },
-            //     Err(metric::Error::OutOfLowerBound(_)) => "0".to_string(),
-            //     _ => panic!("unknown error"),
-            // };
+                // },
+                Err(metric::Error::OutOfLowerBound(_)) => "0".to_string(),
+                _ => panic!("unknown error"),
+            };
 
-            // println!(
-            //     "  {} - {}",
-            //     format!("{}", ch_col.apply_to(ch).bold()),
-            //     format!("{}", style(format!("{} {}", value, unit)).bold())
-            // );
+            println!(
+                "  {} - {}",
+                format!("{}", ch_col.apply_to(ch).bold()),
+                format!("{}", style(format!("{} {}", value, unit)).bold())
+            );
         }
     };
 }
