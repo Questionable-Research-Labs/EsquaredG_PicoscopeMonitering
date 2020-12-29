@@ -21,10 +21,11 @@ use std::{
     collections::{HashMap, VecDeque},
     convert::TryFrom,
     sync::{Arc, Mutex},
+    time::Instant,
 };
 
-use crate::app::{get_data, index, api_index, AppState};
-use actix_web::{middleware, web, App, HttpServer, HttpResponse};
+use crate::app::{api_index, get_data, index, AppState};
+use actix_web::{middleware, web, App, HttpResponse, HttpServer};
 
 fn better_theme() -> ColorfulTheme {
     ColorfulTheme {
@@ -90,11 +91,19 @@ async fn main() -> Result<()> {
     let rate_calc = RateCalc::new();
 
     web_server.run();
+    let mut instant = Instant::now();
 
     let _sub = streaming_device
         .events
         .subscribe_on_thread(Box::new(move |event| {
-            display_capture_stats(event, &term, &rate_calc, &ch_units, state.clone());
+            display_capture_stats(
+                event,
+                &term,
+                &rate_calc,
+                &ch_units,
+                state.clone(),
+                &mut instant,
+            );
         }));
 
     println!("Press Enter to stop streaming");
@@ -113,7 +122,6 @@ fn select_device(enumerator: &DeviceEnumerator) -> Result<PicoDevice> {
         println!("Searching for devices...",);
 
         let devices = enumerator.enumerate();
-        
 
         if devices.is_empty() {
             return Err(anyhow!("{}", style("No Pico devices found").red()));
@@ -292,6 +300,7 @@ fn display_capture_stats(
     rate_calc: &RateCalc,
     ch_units: &HashMap<PicoChannel, String>,
     state: web::Data<Mutex<AppState>>,
+    instant: &mut Instant,
 ) {
     if let StreamingEvent::Data {
         length: _,
@@ -332,16 +341,14 @@ fn display_capture_stats(
 
         for (ch, _, first, unit) in data {
             let ch_col = get_colour(ch);
-
             let value = match metric::Signifix::try_from(first) {
-                Ok(v) => { 
+                Ok(v) => {
                     let mut state_unlocked = state.lock().unwrap();
-                    let start_time = state_unlocked.start_time.clone();
-                    state_unlocked.voltage.push((first, start_time.elapsed().as_millis())); format!("{}", v) },
-                // Ok(v) => {
-                //     let mut stateUnlocked = state.lock().unwrap();
-
-                // },
+                    state_unlocked
+                        .voltage
+                        .push((first, instant.elapsed().as_millis()));
+                    format!("{}", v)
+                }
                 Err(metric::Error::OutOfLowerBound(_)) => "0".to_string(),
                 _ => panic!("unknown error"),
             };

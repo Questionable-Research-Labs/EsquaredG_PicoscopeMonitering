@@ -12,3 +12,4 @@ Cargo.lock
 # IDE config folders
 .vscode/
 .idea/
+node_modules/

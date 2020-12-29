@@ -13,7 +13,6 @@ use std::collections::HashMap;
 pub struct AppState {
     pub voltage: Vec<(f32, u128)>,
     pub channel_configuration: HashMap<PicoChannel, String>,
-    pub start_time: std::time::Instant,
 }
 
 impl AppState {
@@ -21,7 +20,6 @@ impl AppState {
         AppState {
             voltage: vec!(),
             channel_configuration: channel_configuration,
-            start_time: std::time::Instant::now(),
         }
     }
 }
@@ -58,8 +56,6 @@ pub fn get_data(state: actix_web::web::Data<Mutex<AppState>>) -> HttpResponse {
     };
 
     let result = format!(r#"{{ "voltages": {} }}"#, json_voltage);
-
-    
 
     // *app_state.voltage = 
 

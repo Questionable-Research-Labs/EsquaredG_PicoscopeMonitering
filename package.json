@@ -1,0 +1,22 @@
+{
+  "name": "EsquaredG_PicoscopeMonitering",
+  "version": "1.0.0",
+  "private": true,
+  "repository": "https://github.com/Questionable-Research-Labs/EsquaredG_PicoscopeMonitering.git",
+  "authors": [
+    "Jasper M-W <jasper@ngita.co.nz>",
+    "Nathan Hare <me@laspruca.nz>"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "bootstrap": "^4.5.3",
+    "jquery": "^3.5.1"
+  },
+  "devDependencies": {
+    "webpack": "^5.11.1",
+    "webpack-cli": "^4.3.0"
+  },
+  "scripts": {
+    "build": "webpack"
+  }
+}
