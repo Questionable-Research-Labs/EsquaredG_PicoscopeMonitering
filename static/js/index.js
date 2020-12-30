@@ -60,9 +60,9 @@ function checkAlive() {
 }
 
 $(() => {
-    setInterval(async () => {
-        checkAlive();
-    }, 500);
+    // setInterval(async () => {
+    //     checkAlive();
+    // }, 500);
     $.ajax({
         type: "get", url: "/api/device-info",
         success: (data, text) => {

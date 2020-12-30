@@ -1,4 +1,9 @@
-@import "~bootstrap/scss/bootstrap";
+@import "../../node_modules/bootstrap/scss/bootstrap.scss";
+@import "../fonts/SourceCodePro-Regular.ttf";
+@font-face {
+    src: url("../fonts/Audiowide-Regular.ttf");
+    font-family: 'Audiowide';
+}
 
 $text-colour: #d4d4d4; //color: #d6cdfb;
 $background-color: rgb(15, 15, 15);
@@ -9,17 +14,28 @@ body {
     min-height: 100vh;
 }
 
+.title {
+    text-align: center;
+    font-family: 'Audiowide'
+}
+
 .content {
     margin: $page-margin;
 
     .info-container-wrapper {
+        width: max-content;
         &::before {
-            content: 'Info'
+            font-family: 'Source Code Pro', monospace;
+            font-weight: bolder;
+            font-size: 20pt;
+            content: 'Info';
         }
         .info-container {
             padding: 1rem;
+            font-family: 'Source Code Pro', monospace;
+            font-weight: bold;
             .setting-value {
-
+                font-weight: normal;
             }
         }
     }
