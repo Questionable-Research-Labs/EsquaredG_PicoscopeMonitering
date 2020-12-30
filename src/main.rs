@@ -60,17 +60,22 @@ async fn main() -> Result<()> {
     })
     .bind("127.0.0.1:8000")?;
 
+    // Initlize picoscope
     let enumerator = DeviceEnumerator::with_resolution(cache_resolution());
     let device = select_device(&enumerator)?;
     let ch_units = configure_channels(&device);
 
+    let streaming_device = device.clone().to_streaming_device();
+    let capture_rate = get_capture_rate();
+
+
+    // Initializing the state
     let mut locked_state = state.lock().unwrap();
 
-    let mut channel_info = vec!();
 
     for (channel, details) in device.channels.read().iter() {
         if details.configuration.enabled {
-            channel_info.push(ChannelInfo {
+            locked_state.device_info.channel_info.push(ChannelInfo {
                 channel: channel.to_string(),
                 virt_channels: 1,
                 voltage_range: details.configuration.range.get_max_scaled_value()
@@ -78,17 +83,16 @@ async fn main() -> Result<()> {
         }
     }
 
-    locked_state.device_info.channel_info = channel_info;
+    // locked_state.device_info.channel_info = channel_info;
     locked_state.device_info.pico_scope_type = (&device.variant).to_owned();
-
-    let streaming_device = device.to_streaming_device();
-    let capture_rate = get_capture_rate();
 
     locked_state.device_info.refresh_rate = (&capture_rate).to_owned();
 
     drop(locked_state);
-
+    
+    // Start the webserver
     web_server.run();
+
     let mut instant = Instant::now();
 
     let _sub = streaming_device
