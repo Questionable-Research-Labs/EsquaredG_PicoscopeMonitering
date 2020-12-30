@@ -1,3 +1,5 @@
+@import "~bootstrap/scss/bootstrap";
+
 $text-colour: #d4d4d4; //color: #d6cdfb;
 $background-color: rgb(15, 15, 15);
 $page-margin: 1em;
@@ -15,7 +17,7 @@ body {
             content: 'Info'
         }
         .info-container {
-            
+            padding: 1rem;
             .setting-value {
 
             }

@@ -6,13 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EsquaredG_PicoscopeMonitoring</title>
     <script src="/js/bundle.js"></script>
-    <link rel="stylesheet" type="text/css" href="bootstrap/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="css/main.css">
 </head>
 
 <body class="bg-dark bg-gradient text-white">
     <div class="content">
         <h1 class="display-1">E<sup>2</sup>G Picoscope Monitoring</h1>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#serverDisconectedModal">
+  Launch demo modal
+</button>
         <div class="info-container-wrapper">
             <div class="info-container border border-light border-3">
                 Picoscope Type: <span class="setting-value" id="info-picoscope-type"></span><br>
@@ -26,7 +28,7 @@
         <div class="waveform-canvas border border-light border-3"></div>
     </div>
     <!-- Server Disconnected Modal -->
-    <div class="modal fade" id="serverDisconectedModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="staticBackdropLabel" aria-hidden="true">
+    <div class="modal fade" id="serverDisconnectedModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="staticBackdropLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content bg-danger bg-gradient">
                 <div class="modal-header">
@@ -44,5 +46,4 @@
     </div>
     
 </body>
-<script src="/bootstrap/js/bootstrap.min.js" crossorigin="anonymous"></script>
 </html>
