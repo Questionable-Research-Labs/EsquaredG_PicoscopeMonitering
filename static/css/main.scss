@@ -1,5 +1,6 @@
-$text-colour: #d4d4d4;
+$text-colour: #d4d4d4; //color: #d6cdfb;
 $background-color: rgb(15, 15, 15);
+$page-margin: 1em;
 
 body {
     // background-color: $background-color;
@@ -7,10 +8,25 @@ body {
 }
 
 .content {
-    padding: 1em;
+    margin: $page-margin;
+
+    .info-container-wrapper {
+        &::before {
+            content: 'Info'
+        }
+        .info-container {
+            
+            .setting-value {
+
+            }
+        }
+    }
+    
+
     .waveform-canvas {
+        
         min-height: 200px;
-        width: 100%;
+        width: calc(100% - #{$page-margin} * 2);
         position: absolute;
         bottom: 0;
     }

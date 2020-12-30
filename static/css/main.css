@@ -3,12 +3,16 @@ body {
 }
 
 .content {
-  padding: 1em;
+  margin: 1em;
+}
+
+.content .info-container-wrapper::before {
+  content: 'Info';
 }
 
 .content .waveform-canvas {
   min-height: 200px;
-  width: 100%;
+  width: calc(100% - 1em * 2);
   position: absolute;
   bottom: 0;
 }

@@ -1,36 +1,32 @@
-use actix_web::{get, HttpResponse};
-use std::sync::Mutex;
+pub mod state;
 
-use std::io::prelude::*;
+use actix_web::{
+    get, 
+    HttpResponse,
+    web::Data
+};
+
+use std::{
+    sync::Mutex,
+    io::prelude::*,
+    collections::HashMap
+};
+
+use super::state::AppState;
 
 use serde_json;
 
-use pico_sdk::{
-    common::{PicoChannel},
-};
-use std::collections::HashMap;
+use log::info;
 
-pub struct AppState {
-    pub voltage: Vec<(f32, u128)>,
-    pub channel_configuration: HashMap<PicoChannel, String>,
-}
-
-impl AppState {
-    pub fn new(channel_configuration: HashMap<PicoChannel, String>) -> Self{
-        AppState {
-            voltage: vec!(),
-            channel_configuration: channel_configuration,
-        }
-    }
-}
-
+// /
 #[get("/")]
 pub fn index() -> HttpResponse {
     HttpResponse::Ok().body(std::fs::read_to_string("./static/index.html").unwrap())
 }
 
+// Mounts to /api
 #[get("/")]
-pub fn api_index(state: actix_web::web::Data<Mutex<AppState>>) -> HttpResponse {
+pub fn api_index(state: Data<Mutex<AppState>>) -> HttpResponse {
     let result = format!(r#"{{ "version": 0.1.0}}"#);
 
     HttpResponse::Ok().body(result)
@@ -38,7 +34,7 @@ pub fn api_index(state: actix_web::web::Data<Mutex<AppState>>) -> HttpResponse {
 
 // Mounts to /api/data
 #[get("/data")]
-pub fn get_data(state: actix_web::web::Data<Mutex<AppState>>) -> HttpResponse {
+pub fn get_data(state: Data<Mutex<AppState>>) -> HttpResponse {
     let mut app_state = state.lock().unwrap();
     let voltage = app_state.voltage.clone();
     app_state.voltage.drain(0..voltage.len());
@@ -57,7 +53,21 @@ pub fn get_data(state: actix_web::web::Data<Mutex<AppState>>) -> HttpResponse {
 
     let result = format!(r#"{{ "voltages": {} }}"#, json_voltage);
 
-    // *app_state.voltage = 
-
     return HttpResponse::Ok().body(result)
+}
+
+// Mounts to /api/alive
+#[get("/alive")]
+pub fn check_alive() -> HttpResponse {
+    HttpResponse::Ok().body("Ya think")
+}
+
+// Mounts to /api/device-info
+#[get("/device-info")]
+pub fn device_info(state: Data<Mutex<AppState>>) -> HttpResponse {
+    let locked_state = state.lock().unwrap();
+    let mut device_info = locked_state.device_info.clone();
+    drop(locked_state);
+    
+    return HttpResponse::Ok().body(device_info.to_string());
 }

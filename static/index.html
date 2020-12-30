@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,10 +9,40 @@
     <link rel="stylesheet" type="text/css" href="bootstrap/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="css/main.css">
 </head>
+
 <body class="bg-dark bg-gradient text-white">
     <div class="content">
         <h1 class="display-1">E<sup>2</sup>G Picoscope Monitoring</h1>
+        <div class="info-container-wrapper">
+            <div class="info-container border border-light border-3">
+                Picoscope Type: <span class="setting-value" id="info-picoscope-type"></span><br>
+                Channel Count: <span class="setting-value" id="info-channel-count"></span><br>
+                Virtual Channel Count: <span class="setting-value" id="info-vertual-channel-count"></span><br>
+                Refresh Rate (Real/Virtual): <span class="setting-value" id="info-refresh-rate"></span><br>
+                Voltage Range: <span class="setting-value" id="info-voltage-range"></span><br>
+                Time Running: <span class="setting-value" id="info-time-running"></span><br>
+            </div>
+        </div>
         <div class="waveform-canvas border border-light border-3"></div>
     </div>
+    <!-- Server Disconnected Modal -->
+    <div class="modal fade" id="serverDisconectedModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="staticBackdropLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content bg-danger bg-gradient">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="staticBackdropLabel">Server Disconnected</h5>
+                </div>
+                <div class="modal-body">
+                    ...
+                </div>
+                <div class="modal-footer">
+                    
+                    <button type="button" class="btn btn-primary">Try to reconnect</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
 </body>
+<script src="/bootstrap/js/bootstrap.min.js" crossorigin="anonymous"></script>
 </html>
