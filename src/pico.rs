@@ -263,21 +263,6 @@ pub fn display_capture_stats(
 
         data.sort_by(|a, b| a.0.cmp(&b.0));
 
-        // term.clear_last_lines(data.len() + 1).unwrap();
-
-        // println!(
-        //     "{} @ {}",
-        //     format!("{}", style("Streaming").bold()),
-        //     format!(
-        //         "{}",
-        //         style(format!(
-        //             "{}S/s",
-        //             metric::Signifix::try_from(rate_calc.get_value(_samples)).unwrap()
-        //         ))
-        //         .bold()
-        //     )
-        // );
-
         for (ch, _, first, unit) in data {
             let ch_col = get_colour(ch);
             let value = match metric::Signifix::try_from(first) {
