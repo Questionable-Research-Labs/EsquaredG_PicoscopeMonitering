@@ -70,6 +70,15 @@ async fn main() -> Result<()> {
 
     let mut locked_state = state.lock().unwrap();
 
+    let mut enabled_channels = vec!();
+
+    for (channel, details) in device.channels.read().iter() {
+        if details.configuration.enabled {
+            enabled_channels.push((channel.to_owned(), details.to_owned()));
+        }
+    }
+
+    locked_state.device_info.channel_count = enabled_channels.len() as u32;
     locked_state.device_info.pico_scope_type = (&device.variant).to_owned();
 
     let streaming_device = device.to_streaming_device();
