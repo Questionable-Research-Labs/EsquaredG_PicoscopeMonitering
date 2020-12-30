@@ -16,13 +16,16 @@
             <div class="info-container border border-light border-3">
                 Picoscope Type: <span class="setting-value" id="info-picoscope-type"></span><br>
                 Channel Count: <span class="setting-value" id="info-channel-count"></span><br>
-                Virtual Channel Count: <span class="setting-value" id="info-vertual-channel-count"></span><br>
+                Virtual Channel Count: <span class="setting-value" id="info-virtual-channel-count"></span><br>
                 Refresh Rate (Real/Virtual): <span class="setting-value" id="info-refresh-rate"></span><br>
                 Voltage Range: <span class="setting-value" id="info-voltage-range"></span><br>
                 Time Running: <span class="setting-value" id="info-time-running"></span><br>
             </div>
         </div>
-        <div class="waveform-canvas border border-light border-3"></div>
+        <div class="waveform-canvas-wrapper border border-light border-3">
+            <div id="voltage-graph-area">
+            </div>
+        </div>
     </div>
     <!-- Server Disconnected Modal -->
     <div class="modal fade" id="serverDisconnectedModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="staticBackdropLabel" aria-hidden="true">

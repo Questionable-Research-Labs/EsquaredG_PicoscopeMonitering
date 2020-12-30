@@ -11302,11 +11302,6 @@ fieldset:disabled .btn {
   }
 }
 
-@font-face {
-  src: url("../fonts/Audiowide-Regular.ttf");
-  font-family: 'Audiowide';
-}
-
 body {
   min-height: 100vh;
 }
@@ -11343,10 +11338,105 @@ body {
   font-weight: normal;
 }
 
-.content .waveform-canvas {
-  min-height: 200px;
+.content .waveform-canvas-wrapper {
+  min-height: 400px;
   width: calc(100% - 1em * 2);
   position: absolute;
+  margin: 1em;
+  margin-left: 0;
+}
+
+.content .waveform-canvas-wrapper #voltage-graph-area {
   bottom: 0;
+  width: auto;
+  position: relative;
+}
+
+.content .waveform-canvas-wrapper #voltage-graph-area .axis {
+  font: 10px sans-serif;
+  position: fixed;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.content .waveform-canvas-wrapper #voltage-graph-area .axis text {
+  -webkit-transition: fill-opacity 250ms linear;
+}
+
+.content .waveform-canvas-wrapper #voltage-graph-area .axis path {
+  display: none;
+}
+
+.content .waveform-canvas-wrapper #voltage-graph-area .axis line {
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.content .waveform-canvas-wrapper #voltage-graph-area .top {
+  background-image: -webkit-gradient(linear, left top, left bottom, from(#fff), to(rgba(255, 255, 255, 0)));
+  background-image: linear-gradient(top, #fff 0%, rgba(255, 255, 255, 0) 100%);
+  background-image: -ms-linear-gradient(top, #fff 0%, rgba(255, 255, 255, 0) 100%);
+  top: 0px;
+  padding: 0 0 24px 0;
+  position: absolute;
+}
+
+.content .waveform-canvas-wrapper #voltage-graph-area .bottom {
+  background-image: -webkit-gradient(linear, left bottom, left top, from(#fff), to(rgba(255, 255, 255, 0)));
+  background-image: linear-gradient(bottom, #fff 0%, rgba(255, 255, 255, 0) 100%);
+  background-image: -ms-linear-gradient(bottom, #fff 0%, rgba(255, 255, 255, 0) 100%);
+  bottom: 0px;
+  padding: 24px 0 0 0;
+  position: absolute;
+}
+
+.content .waveform-canvas-wrapper #voltage-graph-area .horizon {
+  border-bottom: solid 1px #000;
+  overflow: hidden;
+  position: relative;
+}
+
+.content .waveform-canvas-wrapper #voltage-graph-area .horizon {
+  border-top: solid 1px #000;
+  border-bottom: solid 1px #000;
+}
+
+.content .waveform-canvas-wrapper #voltage-graph-area .horizon + .horizon {
+  border-top: none;
+}
+
+.content .waveform-canvas-wrapper #voltage-graph-area .horizon canvas {
+  display: block;
+}
+
+.content .waveform-canvas-wrapper #voltage-graph-area .horizon .title,
+.content .waveform-canvas-wrapper #voltage-graph-area .horizon .value {
+  bottom: 0;
+  line-height: 30px;
+  margin: 0 6px;
+  position: absolute;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+  white-space: nowrap;
+}
+
+.content .waveform-canvas-wrapper #voltage-graph-area .horizon .title {
+  left: 0;
+}
+
+.content .waveform-canvas-wrapper #voltage-graph-area .horizon .value {
+  right: 0;
+}
+
+.content .waveform-canvas-wrapper #voltage-graph-area .line {
+  background: white;
+  z-index: 2;
+}
+
+header {
+  padding: 6px 0;
+}
+
+.group {
+  margin-bottom: 1em;
 }
 /*# sourceMappingURL=main.css.map */
