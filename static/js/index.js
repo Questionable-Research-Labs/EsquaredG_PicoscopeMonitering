@@ -1,6 +1,7 @@
-import $ from 'jquery';
-import { context } from 'cubism-es';
+import $ from "jquery";
+import { context } from "cubism-es";
 
+let current_voltage_points = [];
 
 let current_voltage_points = []
 let server_alive = true;
