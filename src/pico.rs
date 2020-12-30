@@ -1,7 +1,7 @@
 use actix_web::web;
 use signifix::metric;
 use anyhow::{anyhow, Result};
-use console::{style, Style, Term};
+use console::{style, Style};
 use dialoguer::{theme::ColorfulTheme, Select};
 use crate::app::state::AppState;
 
@@ -237,8 +237,6 @@ fn get_colour(ch: PicoChannel) -> Style {
 
 pub fn display_capture_stats(
     event: StreamingEvent,
-    term: &Term,
-    rate_calc: &RateCalc,
     ch_units: &HashMap<PicoChannel, String>,
     state: web::Data<Mutex<AppState>>,
     instant: &mut Instant,
@@ -261,7 +259,7 @@ pub fn display_capture_stats(
             })
             .collect();
 
-        let (_, samples, _, _) = data[0];
+        let (_, _samples, _, _) = data[0];
 
         data.sort_by(|a, b| a.0.cmp(&b.0));
 
@@ -274,7 +272,7 @@ pub fn display_capture_stats(
         //         "{}",
         //         style(format!(
         //             "{}S/s",
-        //             metric::Signifix::try_from(rate_calc.get_value(samples)).unwrap()
+        //             metric::Signifix::try_from(rate_calc.get_value(_samples)).unwrap()
         //         ))
         //         .bold()
         //     )

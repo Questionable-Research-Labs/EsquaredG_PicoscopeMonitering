@@ -1,13 +1,17 @@
 use serde::Serialize;
 
 #[derive(Clone, Serialize)]
+pub struct ChannelInfo {
+    pub channel: String,
+    pub virt_channels: u32,
+    pub voltage_range: f32,
+}
+
+#[derive(Clone, Serialize)]
 pub struct DeviceInfo {
     pub pico_scope_type: String,
-    pub channel_count: u32,
-    pub virt_channel_count: u32,
+    pub channel_info: Vec<ChannelInfo>,
     pub refresh_rate: u32,
-    pub voltage_range: u32,
-    pub time_running: u128
 }
 
 impl ToString for DeviceInfo {

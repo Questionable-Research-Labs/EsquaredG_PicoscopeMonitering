@@ -28,7 +28,7 @@ use std::{
     time::Instant,
 };
 
-use log::info;
+use crate::app::state::ChannelInfo;
 
 #[actix_web::main]
 async fn main() -> Result<()> {
@@ -38,11 +38,8 @@ async fn main() -> Result<()> {
     // Setup actix webserver
     let state = web::Data::new(Mutex::new(AppState::new(DeviceInfo {
         pico_scope_type: "".to_string(),
-        channel_count: 1,
-        virt_channel_count: 0,
+        channel_info: vec!(),
         refresh_rate: 0,
-        voltage_range: 0,
-        time_running: 0
     })));
 
     let state2 = state.clone();
@@ -54,7 +51,6 @@ async fn main() -> Result<()> {
                 // All /api routes
                 web::scope("/api")
                     .service(get_data)
-                    .service(api_index)
                     .service(check_alive)
                     .service(device_info),
             )
@@ -70,15 +66,19 @@ async fn main() -> Result<()> {
 
     let mut locked_state = state.lock().unwrap();
 
-    let mut enabled_channels = vec!();
+    let mut channel_info = vec!();
 
     for (channel, details) in device.channels.read().iter() {
         if details.configuration.enabled {
-            enabled_channels.push((channel.to_owned(), details.to_owned()));
+            channel_info.push(ChannelInfo {
+                channel: channel.to_string(),
+                virt_channels: 1,
+                voltage_range: details.configuration.range.get_max_scaled_value()
+            })
         }
     }
 
-    locked_state.device_info.channel_count = enabled_channels.len() as u32;
+    locked_state.device_info.channel_info = channel_info;
     locked_state.device_info.pico_scope_type = (&device.variant).to_owned();
 
     let streaming_device = device.to_streaming_device();
@@ -88,9 +88,6 @@ async fn main() -> Result<()> {
 
     drop(locked_state);
 
-    let term = Term::stdout();
-    let rate_calc = RateCalc::new();
-
     web_server.run();
     let mut instant = Instant::now();
 
@@ -99,8 +96,6 @@ async fn main() -> Result<()> {
         .subscribe_on_thread(Box::new(move |event| {
             display_capture_stats(
                 event,
-                &term,
-                &rate_calc,
                 &ch_units,
                 state.clone(),
                 &mut instant,

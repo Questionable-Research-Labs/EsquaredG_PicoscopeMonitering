@@ -7,16 +7,14 @@ use actix_web::{
 };
 
 use std::{
-    sync::Mutex,
-    io::prelude::*,
-    collections::HashMap
+    sync::Mutex
 };
 
 use super::state::AppState;
 
 use serde_json;
 
-use log::info;
+
 
 // /
 #[get("/")]
@@ -26,7 +24,7 @@ pub fn index() -> HttpResponse {
 
 // Mounts to /api
 #[get("/")]
-pub fn api_index(state: Data<Mutex<AppState>>) -> HttpResponse {
+pub fn api_index() -> HttpResponse {
     let result = format!(r#"{{ "version": 0.1.0}}"#);
 
     HttpResponse::Ok().body(result)
@@ -66,7 +64,7 @@ pub fn check_alive() -> HttpResponse {
 #[get("/device-info")]
 pub fn device_info(state: Data<Mutex<AppState>>) -> HttpResponse {
     let locked_state = state.lock().unwrap();
-    let mut device_info = locked_state.device_info.clone();
+    let device_info = locked_state.device_info.clone();
     drop(locked_state);
     
     return HttpResponse::Ok().body(device_info.to_string());
