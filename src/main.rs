@@ -32,7 +32,7 @@ use crate::app::state::ChannelInfo;
 
 #[actix_web::main]
 async fn main() -> Result<()> {
-    std::env::set_var("RUST_LOG", "actix_web=info,pico=info");
+    std::env::set_var("RUST_LOG", "actix_web=warning,pico=debug");
     env_logger::init();
 
     // Setup actix webserver

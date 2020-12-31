@@ -11373,18 +11373,12 @@ body {
 }
 
 .content .waveform-canvas-wrapper #voltage-graph-area .top {
-  background-image: -webkit-gradient(linear, left top, left bottom, from(#fff), to(rgba(255, 255, 255, 0)));
-  background-image: linear-gradient(top, #fff 0%, rgba(255, 255, 255, 0) 100%);
-  background-image: -ms-linear-gradient(top, #fff 0%, rgba(255, 255, 255, 0) 100%);
   top: 0px;
   padding: 0 0 24px 0;
   position: absolute;
 }
 
 .content .waveform-canvas-wrapper #voltage-graph-area .bottom {
-  background-image: -webkit-gradient(linear, left bottom, left top, from(#fff), to(rgba(255, 255, 255, 0)));
-  background-image: linear-gradient(bottom, #fff 0%, rgba(255, 255, 255, 0) 100%);
-  background-image: -ms-linear-gradient(bottom, #fff 0%, rgba(255, 255, 255, 0) 100%);
   bottom: 0px;
   padding: 24px 0 0 0;
   position: absolute;
