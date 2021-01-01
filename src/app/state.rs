@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::collections::HashMap;
 
 #[derive(Clone, Serialize)]
 pub struct ChannelInfo {
@@ -21,14 +22,14 @@ impl ToString for DeviceInfo {
 }
 
 pub struct AppState {
-    pub voltage: Vec<(f32, u128)>,
+    pub voltage: HashMap<String,Vec<(f32, u128)>>,
     pub device_info: DeviceInfo
 }
 
 impl AppState {
     pub fn new(device_info: DeviceInfo) -> Self {
         AppState {
-            voltage: vec!(),
+            voltage: HashMap::new(),
             device_info
         }
     }

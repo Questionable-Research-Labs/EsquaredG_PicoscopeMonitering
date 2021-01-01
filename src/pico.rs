@@ -235,7 +235,7 @@ fn get_colour(ch: PicoChannel) -> Style {
     }
 }
 
-pub fn display_capture_stats(
+pub fn voltage_capture_async(
     event: StreamingEvent,
     ch_units: &HashMap<PicoChannel, String>,
     state: web::Data<Mutex<AppState>>,
@@ -263,14 +263,13 @@ pub fn display_capture_stats(
 
         data.sort_by(|a, b| a.0.cmp(&b.0));
 
-        for (ch, _, first, unit) in data {
+        for (ch, _, voltage, unit) in data {
             let ch_col = get_colour(ch);
-            let value = match metric::Signifix::try_from(first) {
+            let value = match metric::Signifix::try_from(voltage) {
                 Ok(v) => {
                     let mut state_unlocked = state.lock().unwrap();
-                    state_unlocked
-                        .voltage
-                        .push((first, instant.elapsed().as_millis()));
+                    let mut val = state_unlocked.voltage.entry(ch.to_string()).or_insert(vec!());   
+                    val.push((voltage, instant.elapsed().as_millis()));
                     format!("{}", v)
                 }
                 Err(metric::Error::OutOfLowerBound(_)) => "0".to_string(),

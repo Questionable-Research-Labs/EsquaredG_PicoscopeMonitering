@@ -98,7 +98,7 @@ async fn main() -> Result<()> {
     let _sub = streaming_device
         .events
         .subscribe_on_thread(Box::new(move |event| {
-            display_capture_stats(
+            voltage_capture_async(
                 event,
                 &ch_units,
                 state.clone(),

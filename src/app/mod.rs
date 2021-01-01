@@ -34,20 +34,11 @@ pub fn api_index() -> HttpResponse {
 #[get("/data")]
 pub fn get_data(state: Data<Mutex<AppState>>) -> HttpResponse {
     let mut app_state = state.lock().unwrap();
-    let voltage = app_state.voltage.clone();
-    app_state.voltage.drain(0..voltage.len());
+    let voltages = app_state.voltage.clone();
+    app_state.voltage.drain();
     drop(app_state);
 
-    let json_voltage = match serde_json::to_string(&voltage.iter().map(|f| f.to_owned()).collect::<Vec<(f32,u128)>>()) {
-        Ok(voltage) => voltage,
-        Err(error) => {
-            return HttpResponse::InternalServerError().body(
-                format!(
-                    r#"{{ "code":{}, "overview": {}, "error":{:?} }}"#,
-                    500,"Internal error serializing data",error
-                ))
-        }
-    };
+    let json_voltage = serde_json::to_string(&voltages).unwrap();
 
     let result = format!(r#"{{ "voltages": {} }}"#, json_voltage);
 

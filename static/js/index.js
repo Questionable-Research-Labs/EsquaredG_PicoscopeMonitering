@@ -2,12 +2,10 @@ import $ from "jquery";
 import * as d3 from "d3";
 import { context } from "cubism-es";
 import { Modal } from 'bootstrap';
-// import es6-shim;
-
 
 let data = {};
 
-let current_voltage_points = []
+let current_voltage_points = {}
 let server_alive = true;
 
 // Absolutely needed
@@ -21,13 +19,17 @@ const getData = async () => {
         type: "get", url: "/api/data",
         success: function (data, text) {
             let voltages = data["voltages"];
-            if (voltages.length != 0) {
-                for (let i = 0; i < voltages.length; i++) {
-                    let voltage = voltages[i];
-                    current_voltage_points.push(voltage);
+            if (Object.keys(voltages).length != 0) {
+                console.log(voltages)
+                for (let channel of Object.keys(voltages)) {
+                    current_voltage_points[channel]+=voltages[channel]
+                    console.log(current_voltage_points)
                 }
+                
+                
+                let top_channel = voltages[Object.keys(voltages)[0]];
 
-                let ms = voltages[voltages.length - 1][1];
+                let ms = top_channel[top_channel.length - 1][1];
 
                 let seconds = ms / 1000;
                 let hours = parseInt(seconds / 3600); // 3,600 seconds in 1 hour
@@ -104,7 +106,7 @@ function cubismInitialization() {
     ctx.rule().render(r);
     console.log(deviceConfig["channel_info"])
     const h = d3.select("#voltage-graph-area").selectAll(".horizon")
-        .data(d3.range(0, deviceConfig["channel_info"].length).map(random))
+        .data(d3.range(0, Object.keys(current_voltage_points).length).map(generateGraphPoints))
         .enter().insert("div", ".bottom")
         .attr("class", "horizon");
     const range = Math.max(...deviceConfig["channel_info"].map((e) => e["voltage_range"]))
@@ -118,9 +120,9 @@ function cubismInitialization() {
     });
 
     // Replace this with context.graphite and graphite.metric!
-    function random(x) {
+    function generateGraphPoints(x) {
         return ctx.metric(function (start, stop, step, callback) {
-            callback(null, current_voltage_points.map(e => e[0]));
+            callback(null, x);
         }, x);
     }
 }
