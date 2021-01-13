@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use console::{style, Style};
 use dialoguer::{theme::ColorfulTheme, Select};
 use crate::app::state::AppState;
-
+use chrono::{DateTime, Utc};
 
 use std::{
     collections::{HashMap, VecDeque},
@@ -269,7 +269,7 @@ pub fn voltage_capture_async(
                 Ok(v) => {
                     let mut state_unlocked = state.lock().unwrap();
                     let mut val = state_unlocked.voltage.entry(ch.to_string()).or_insert(vec!());   
-                    val.push((voltage, instant.elapsed().as_millis()));
+                    val.push((voltage, instant.elapsed().as_millis(), format!("{}",Utc::now().to_rfc3339())));
                     format!("{}", v)
                 }
                 Err(metric::Error::OutOfLowerBound(_)) => "0".to_string(),

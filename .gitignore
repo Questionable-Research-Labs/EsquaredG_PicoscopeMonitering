@@ -17,3 +17,4 @@ node_modules/
 static/css/main.css
 
 static/js/bundle.*
+.sass-cache/

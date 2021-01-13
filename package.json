@@ -12,9 +12,11 @@
     "@popperjs/core": "^2.6.0",
     "bootstrap": "^5.0.0-beta1",
     "chart.js": "^2.9.4",
+    "chartjs-plugin-streaming": "^1.8.0",
     "cubism-es": "^1.1.2",
     "d3": "5",
     "jquery": "^3.5.1",
+    "moment": "^2.29.1",
     "popper.js": "^1.16.1"
   },
   "devDependencies": {

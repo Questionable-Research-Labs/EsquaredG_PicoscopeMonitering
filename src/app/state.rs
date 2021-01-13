@@ -22,7 +22,7 @@ impl ToString for DeviceInfo {
 }
 
 pub struct AppState {
-    pub voltage: HashMap<String,Vec<(f32, u128)>>,
+    pub voltage: HashMap<String,Vec<(f32, u128, String)>>,
     pub device_info: DeviceInfo
 }
 
