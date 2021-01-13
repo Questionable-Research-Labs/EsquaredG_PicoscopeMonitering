@@ -1,140 +1,139 @@
 @import "../../node_modules/bootstrap/scss/bootstrap.scss";
-@import "../fonts/SourceCodePro-Regular.ttf";
-@import "../fonts/Audiowide-Regular.ttf";
+
+@font-face {
+  font-family: "Source Code Pro", monospace;
+  src: "../fonts/SourceCodePro-Regular.ttf";
+}
+
+@font-face {
+  font-family: "Audiowide";
+  src: "../fonts/Audiowide-Regular.ttf";
+}
 
 $text-colour: #e0e0e0; //color: #d6cdfb;
 $background-color: rgb(15, 15, 15);
 $page-margin: 1em;
 
 body {
-    // background-color: $background-color;
-    min-height: 100vh;
+  // background-color: $background-color;
+  min-height: 100vh;
 }
 
 .title {
-    text-align: center;
-    font-family: 'Audiowide'
+  text-align: center;
+  font-family: "Audiowide";
 }
 
 .content {
+  margin: $page-margin;
+
+  .info-container-wrapper {
+    width: max-content;
+    &::before {
+      font-family: "Source Code Pro", monospace;
+      font-weight: bolder;
+      font-size: 20pt;
+      content: "Info";
+    }
+    .info-container {
+      padding: 1rem;
+      font-family: "Source Code Pro", monospace;
+      font-weight: bold;
+      .setting-value {
+        font-weight: normal;
+      }
+    }
+  }
+
+  .waveform-canvas-wrapper {
+    min-height: 400px;
+    width: calc(100% - #{$page-margin} * 2);
+    position: absolute;
     margin: $page-margin;
+    margin-left: 0;
 
-    .info-container-wrapper {
-        width: max-content;
-        &::before {
-            font-family: 'Source Code Pro', monospace;
-            font-weight: bolder;
-            font-size: 20pt;
-            content: 'Info';
-        }
-        .info-container {
-            padding: 1rem;
-            font-family: 'Source Code Pro', monospace;
-            font-weight: bold;
-            .setting-value {
-                font-weight: normal;
-            }
-        }
-    }
-    
+    #voltage-graph-area {
+      bottom: 0;
 
-    .waveform-canvas-wrapper {
-        
-        min-height: 400px;
-        width: calc(100% - #{$page-margin} * 2);
+      width: auto;
+      position: relative;
+      .axis {
+        font: 10px sans-serif;
+        position: fixed;
+        pointer-events: none;
+        z-index: 2;
+
+        text {
+          -webkit-transition: fill-opacity 250ms linear;
+        }
+        path {
+          display: none;
+        }
+        line {
+          stroke: #000;
+          shape-rendering: crispEdges;
+        }
+      }
+      .top {
+        top: 0px;
+        padding: 0 0 24px 0;
         position: absolute;
-        margin: $page-margin;
-        margin-left: 0;
-        
-        #voltage-graph-area {
-            bottom: 0;
-            
-            width: auto;
-            position: relative;
-            .axis {
-                font: 10px sans-serif;
-                position: fixed;
-                pointer-events: none;
-                z-index: 2;
+      }
+      .bottom {
+        bottom: 0px;
+        padding: 24px 0 0 0;
+        position: absolute;
+      }
+      .horizon {
+        border-bottom: solid 1px #000;
+        overflow: hidden;
+        position: relative;
+      }
 
-                text {
-                    -webkit-transition: fill-opacity 250ms linear;
-                }
-                path {
-                    display: none;
-                }
-                line {
-                    stroke: #000;
-                    shape-rendering: crispEdges;
-                }
-                
-            }
-            .top {
-                top: 0px;
-                padding: 0 0 24px 0;
-                position: absolute;
-            }
-            .bottom {
-                bottom: 0px;
-                padding: 24px 0 0 0;
-                position: absolute;
+      .horizon {
+        border-top: solid 1px #000;
+        border-bottom: solid 1px #000;
+      }
 
-            }
-            .horizon {
-                border-bottom: solid 1px #000;
-                overflow: hidden;
-                position: relative;
-            }
-            
-            .horizon {
-                border-top: solid 1px #000;
-                border-bottom: solid 1px #000;
-            }
-            
-            .horizon + .horizon {
-                border-top: none;
-            }
-            
-            .horizon canvas {
-                display: block;
-            }
-            
-            .horizon .title,
-            .horizon .value {
-                bottom: 0;
-                line-height: 30px;
-                margin: 0 6px;
-                position: absolute;
-                text-shadow: 0 1px 0 rgba(255,255,255,.5);
-                white-space: nowrap;
-            }
-            
-            .horizon .title {
-                left: 0;
-            }
-            
-            .horizon .value {
-                right: 0;
-            }
-            .line {
-                background: rgb(255, 255, 255);
-                z-index: 2;
-            }            
-        }
+      .horizon + .horizon {
+        border-top: none;
+      }
+
+      .horizon canvas {
+        display: block;
+      }
+
+      .horizon .title,
+      .horizon .value {
+        bottom: 0;
+        line-height: 30px;
+        margin: 0 6px;
+        position: absolute;
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+        white-space: nowrap;
+      }
+
+      .horizon .title {
+        left: 0;
+      }
+
+      .horizon .value {
+        right: 0;
+      }
+      .line {
+        background: rgb(255, 255, 255);
+        z-index: 2;
+      }
     }
+  }
 }
-
-
 
 // DEMO SHIT
 
-
 header {
-    padding: 6px 0;
+  padding: 6px 0;
 }
 
 .group {
-    margin-bottom: 1em;
+  margin-bottom: 1em;
 }
-
-
