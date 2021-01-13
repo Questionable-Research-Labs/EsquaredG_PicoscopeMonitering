@@ -25,6 +25,7 @@
   },
   "scripts": {
     "build": "scss static/css/main.scss:static/css/main.css && webpack",
+    "watch": "webpack --watch & scss --watch static/css/main.scss:static/css/main.css",
     "watch:js": "webpack --watch",
     "watch:scss": "scss --watch static/css/main.scss:static/css/main.css"
   }

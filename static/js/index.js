@@ -3,6 +3,7 @@ import { Modal } from "bootstrap";
 import { Chart } from "chart.js";
 
 let data = {};
+let graph;
 
 let current_voltage_points = {};
 let server_alive = true;
@@ -18,10 +19,20 @@ const getData = async () => {
     success: function (data, text) {
       let voltages = data["voltages"];
       if (Object.keys(voltages).length != 0) {
-        console.log(voltages);
+        console.log("Voltages", voltages);
         for (let channel of Object.keys(voltages)) {
-          current_voltage_points[channel] += voltages[channel];
-          console.log(current_voltage_points);
+          console.log("Channel", voltages[channel]);
+          if (current_voltage_points[channel] === undefined) {
+            current_voltage_points[channel] = [];
+          }
+          current_voltage_points[channel] = current_voltage_points[
+            channel
+          ].concat(
+            voltages[channel].map((v) => {
+              return { y: v[0], x: v[1] };
+            })
+          );
+          console.log("CVP", current_voltage_points);
         }
 
         let top_channel = voltages[Object.keys(voltages)[0]];
@@ -41,6 +52,7 @@ const getData = async () => {
             ":" +
             zeroPad(seconds.toFixed(3), 3)
         );
+        graph.update();
       } else {
         console.log("No voltages were retrieved.");
       }
@@ -156,36 +168,46 @@ $(() => {
 });
 
 function initChart() {
-  let pornography = [1, 2, 3];
-  let graph = new Chart($("#voltage-graph"), {
+  graph = new Chart($("#voltage-graph"), {
     // The type of chart we want to create
     type: "line",
 
     // The data for our dataset
     data: {
-      labels: ["January", "February", "March", "April", "May", "June", "July"],
       datasets: [
         {
           label: "My First dataset",
           backgroundColor: "rgba(255, 255, 255, 0)",
           borderColor: "rgb(255, 0, 132)",
-          data: pornography,
-        },
-        {
-          label: "E for epic",
-          backgroundColor: "rgba(255, 255, 255, 0)",
-          borderColor: "rgb(255, 99, 132)",
-          data: [0, 10, 5, 2, 20, 30, 10],
+          data: current_voltage_points["A"],
         },
       ],
     },
 
     // Configuration options go here
-    options: {},
+    options: {
+      scales: {
+        yAxes: [
+          {
+            ticks: {
+              suggestedMax: 0.0005,
+              suggestedMin: -0.0005,
+            },
+          },
+        ],
+        scales: {
+          x: {
+            type: "time",
+            time: { unit: "seconds" },
+          },
+          ticks: {
+            suggestedMax: 10,
+            suggestedMin: 0,
+          },
+        },
+      },
+    },
   });
-
-  pornography.push(9);
-  graph.update();
 }
 
 function getDeviceInfo() {
