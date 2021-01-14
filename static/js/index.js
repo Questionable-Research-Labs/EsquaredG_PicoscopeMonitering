@@ -9,6 +9,7 @@ let graph;
 
 let current_voltage_points = {};
 let server_alive = true;
+let deviceConfig = {};
 
 // Absolutely needed
 const isEven = (a) => a % 2 == 0;
@@ -70,7 +71,7 @@ const getData = async () => {
 
 let interval = setInterval(getData, 400);
 
-let deviceConfig = {};
+
 
 function checkAlive() {
     let serverStatusModel = $("#serverDisconnectedModal");
@@ -110,41 +111,50 @@ $(() => {
 });
 
 function initChart() {
+    let datasets = []
+    for (let channel in deviceConfig["channel_info"]) {
+        datasets.push({
+                label: deviceConfig["channel_info"][channel]["channel"],
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
+                borderColor: `rgb(${Math.random()*255}, ${Math.random()*255}, ${Math.random()*255})`,
+                data: []
+            })
+    }
     graph = new Chart($("#voltage-graph"), {
         // The type of chart we want to create
         type: "line",
 
         // The data for our dataset
         data: {
-            datasets: [
-                {
-                    label: "A",
-                    backgroundColor: "rgba(255, 255, 255, 0)",
-                    borderColor: "rgb(255, 0, 132)",
-                    data: [{ "x": Date.now(), "y": 0 }],
-                },
-            ],
+            datasets: datasets
         },
 
         // Configuration options go here
         options: {
             scales: {
-                // yAxes: [{
-                //     scaleLabel: {
-                //         display: true,
-                //         labelString: 'value'
-                //     }
-                // }],    
+                yAxes: [{
+                    scaleLabel: {
+                        display: true,
+                        labelString: 'value'
+                    },
+                    ticks: {
+                        suggestedMax: 0.05,
+                        suggestedMin: -0.05,
+                    },
+                }],    
                 xAxes: [{
                     type: "realtime",
                     realtime: {
+                        duration: 1000,
+                        refresh: 200,
+                        
                         onRefresh: function (chart) {
                             chart.data.datasets.forEach(function (dataset) {
-                                console.log("VP ASKJDNBASD", current_voltage_points);
-                                for (let point of current_voltage_points["A"]) {
+                                console.log("VP ASKJDNBASD", dataset);
+                                for (let point of current_voltage_points[dataset["label"]]) {
                                   dataset.data.push(point);  
                                 }
-                                current_voltage_points["A"] = []
+                                current_voltage_points[dataset["label"]] = []
                                 console.log("Yesn't",dataset.data)
                             })
                             // chart.data.datasets.forEach(function(dataset) {
@@ -161,10 +171,6 @@ function initChart() {
                         }
                     }
                 }],
-                // ticks: {
-                //     suggestedMax: 10,
-                //     suggestedMin: 0,
-                // },
             },
         },
         plugins: {
