@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use console::{style, Style};
 use dialoguer::{theme::ColorfulTheme, Select};
 use crate::app::state::AppState;
-use chrono::{DateTime, Utc};
+use chrono::{Utc};
 
 use std::{
     collections::{HashMap, VecDeque},
@@ -23,7 +23,7 @@ use pico_sdk::{
 
 use log::debug;
 
-fn better_theme() -> ColorfulTheme {
+pub fn better_theme() -> ColorfulTheme {
     ColorfulTheme {
         defaults_style: Style::new(),
         inactive_item_style: Style::new(),
@@ -268,7 +268,7 @@ pub fn voltage_capture_async(
             let value = match metric::Signifix::try_from(voltage) {
                 Ok(v) => {
                     let mut state_unlocked = state.lock().unwrap();
-                    let mut val = state_unlocked.voltage.entry(ch.to_string()).or_insert(vec!());   
+                    let val = state_unlocked.voltage.entry(ch.to_string()).or_insert(vec!());   
                     val.push((voltage, instant.elapsed().as_millis(), format!("{}",Utc::now().to_rfc3339())));
                     format!("{}", v)
                 }

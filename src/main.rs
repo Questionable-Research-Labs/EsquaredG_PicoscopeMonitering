@@ -3,7 +3,7 @@ pub mod app;
 pub mod pico;
 
 use anyhow::Result;
-use console::Term;
+use console::{style, Term, };
 use actix_web::{middleware, web, App, HttpServer};
 
 
@@ -32,7 +32,7 @@ use crate::app::state::ChannelInfo;
 
 #[actix_web::main]
 async fn main() -> Result<()> {
-    std::env::set_var("RUST_LOG", "actix_web=warning,pico=debug");
+    std::env::set_var("RUST_LOG", "actix_web=error,pico=info");
     env_logger::init();
 
     // Setup actix webserver
@@ -105,14 +105,31 @@ async fn main() -> Result<()> {
                 &mut instant,
             );
         }));
-
-    println!("Press Enter to stop streaming");
-
     streaming_device.start(capture_rate).unwrap();
+    let terminal = Term::stdout();
+    loop {
+        terminal.write_line(&format!(
+            "{} {}",
+            style("Streaming!").blue().underlined().bold(),
+            style("Press enter to stop streaming").green()
+        )).unwrap();
+        terminal.read_line().unwrap();
+        terminal.clear_last_lines(2)?;
+        streaming_device.stop();
 
-    Term::stdout().read_line().unwrap();
-
-    streaming_device.stop();
-
-    Ok(())
+        terminal.write_line(&format!(
+            "{} {}",
+            style("Paused").blue().underlined().bold(),
+            style("Press enter to start streaming").green()
+        )).unwrap();
+        terminal.read_line().unwrap();
+        terminal.clear_last_lines(2)?;
+        terminal.write_line(&format!(
+            "{}",
+            style("Starting").green()
+        )).unwrap();
+        
+        streaming_device.start(capture_rate).unwrap();
+        terminal.clear_last_lines(1)?;
+    }
 }

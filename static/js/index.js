@@ -1,8 +1,10 @@
 import $ from "jquery";
 import { Modal } from "bootstrap";
+import {  } from "@popperjs/core";
 import { Chart } from "chart.js";
 import 'chartjs-plugin-streaming';
 import moment from 'moment';
+import { formatPrefix } from "d3-format";
 
 let data = {};
 let graph;
@@ -22,9 +24,7 @@ const getData = async () => {
         success: function (data, text) {
             let voltages = data["voltages"];
             if (Object.keys(voltages).length != 0) {
-                console.log("Voltages", voltages);
                 for (let channel of Object.keys(voltages)) {
-                    console.log("Channel", voltages[channel]);
                     if (current_voltage_points[channel] === undefined) {
                         current_voltage_points[channel] = [];
                     }
@@ -35,7 +35,6 @@ const getData = async () => {
                           return { y: v[0], x: v[2]};
                         })
                     );
-                    console.log("CVP", current_voltage_points);
                 }
 
                 let top_channel = voltages[Object.keys(voltages)[0]];
@@ -48,15 +47,13 @@ const getData = async () => {
                 let minutes = parseInt(seconds / 60); // 60 seconds in 1 minute
                 seconds = seconds % 60;
 
-                $("#info-time-running").html(
+                $("#info-last-report").html(
                     zeroPad(hours, 2) +
                     ":" +
                     zeroPad(minutes, 2) +
                     ":" +
                     zeroPad(seconds.toFixed(3), 3)
                 );
-            } else {
-                console.log("No voltages were retrieved.");
             }
         },
         error: function (request, status, error) {
@@ -74,7 +71,7 @@ let interval = setInterval(getData, 400);
 
 
 function checkAlive() {
-    let serverStatusModel = $("#serverDisconnectedModal");
+    
 
     $.ajax({
         type: "get",
@@ -83,16 +80,17 @@ function checkAlive() {
             if (!server_alive) {
                 console.log("Server connection regained.");
 
-                serverStatusModel.hide();
+                $("#serverDisconnectedModal").modal({show: false});
                 server_alive = true;
                 setInterval(getData, 400);
             }
         },
         error: (request, status, error) => {
+            console.log("Server not alive", server_alive)
             if (server_alive) {
-                console.log("Server connection lost.");
 
-                serverStatusModel.show();
+                console.log("Server connection lost.");
+                $("#serverDisconnectedModal").modal({show: true});
                 server_alive = false;
                 clearInterval(getData, 400);
 
@@ -100,6 +98,7 @@ function checkAlive() {
                 myModalEl.show();
             }
         },
+
     });
 }
 
@@ -150,12 +149,10 @@ function initChart() {
                         
                         onRefresh: function (chart) {
                             chart.data.datasets.forEach(function (dataset) {
-                                console.log("VP ASKJDNBASD", dataset);
                                 for (let point of current_voltage_points[dataset["label"]]) {
                                   dataset.data.push(point);  
                                 }
                                 current_voltage_points[dataset["label"]] = []
-                                console.log("Yesn't",dataset.data)
                             })
                             // chart.data.datasets.forEach(function(dataset) {
 
@@ -180,6 +177,19 @@ function initChart() {
         }
     });
 }
+function testRefreshRate() {
+    console.log()
+    if (current_voltage_points === {}) {
+        return "-"
+    }
+    let refresh_rates = []
+    for (channel in current_voltage_points) {
+        console.log(channel);
+        
+    }
+    return 0;
+
+}
 
 function getDeviceInfo() {
     $.ajax({
@@ -191,6 +201,7 @@ function getDeviceInfo() {
                 .map((e) => e["virt_channels"])
                 .reduce((a, b) => a + b);
             let ChannelCount = data["channel_info"].length;
+            
 
             $("#info-picoscope-type").html("PicoScope " + data["pico_scope_type"]);
             $("#info-channel-count").html(
@@ -201,11 +212,12 @@ function getDeviceInfo() {
             );
             $("#info-virtual-channel-count").html(virtualChannelCount);
 
-            $("#info-refresh-rate").html(
+            $("#info-target-refresh-rate").html(
                 data["refresh_rate"] +
                 " / " +
                 (data["refresh_rate"] * ChannelCount) / virtualChannelCount
             );
+            $("#info-recived-refresh-rate").html(testRefreshRate());
             $("#info-voltage-range").html(
                 data["channel_info"]
                     .map((e) => e["channel"] + ": " + e["voltage_range"])
