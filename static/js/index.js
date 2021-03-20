@@ -10,12 +10,17 @@ let data = {};
 let graph;
 
 let current_voltage_points = {};
+let refreshrate_testing_waitlist = {};
 let server_alive = true;
 let deviceConfig = {};
+
+let chart_initalised = false;
 
 // Absolutely needed
 const isEven = (a) => a % 2 == 0;
 const zeroPad = (num, places) => String(num).padStart(places, "0");
+const average = (array) => array.reduce((a, b) => a + b) / array.length;
+
 
 const getData = async () => {
     $.ajax({
@@ -66,7 +71,7 @@ const getData = async () => {
     });
 };
 
-let interval = setInterval(getData, 400);
+
 
 
 
@@ -104,9 +109,16 @@ function checkAlive() {
 
 $(() => {
     setInterval(async () => {
+        getData();
+    }, 400);
+    setInterval(async () => {
         checkAlive();
     }, 500);
-    getDeviceInfo();
+    setInterval(async () => {
+        getDeviceInfo();
+    }, 1000);
+    
+    
 });
 
 function initChart() {
@@ -177,17 +189,51 @@ function initChart() {
         }
     });
 }
+
+/// Caculates the refresh rate of the data
 function testRefreshRate() {
     console.log()
     if (current_voltage_points === {}) {
         return "-"
     }
     let refresh_rates = []
-    for (channel in current_voltage_points) {
-        console.log(channel);
+    for (let refresh_channel in current_voltage_points) {
+        let voltage_points = current_voltage_points[refresh_channel];
+
+        // Sometimes there is only one data point, so we add it the
+        // refreshrate_testing_waitlist so we can caculate it next time.
+        if (refreshrate_testing_waitlist[refresh_channel] !== undefined) {
+            voltage_points.push(...refreshrate_testing_waitlist[refresh_channel]);
+        }
+        // Clear the waitlist for this channel
+        delete refreshrate_testing_waitlist[refresh_channel];
         
+        console.log(voltage_points);
+        
+        // After the waitlist, again we cannot calculate the refresh rate
+        // with only one data point, so we just return the last value
+        if (voltage_points.length <= 1) {
+            return $("#info-recived-refresh-rate").html();
+        }
+
+        console.log("Wow",voltage_points)
+        
+        // 
+        let avg_diff = Math.abs(
+            Date.parse(voltage_points[0]["x"]) -
+            Date.parse(voltage_points[voltage_points.length-1]["x"])
+        ) / (voltage_points.length - 1);
+
+        let hz = Math.round((1/(avg_diff/1000))*100)/100;
+        console.log("Avg Diff",hz);
+        refresh_rates.push(hz);
     }
-    return 0;
+    if (refresh_rates.length === 0) {
+        return "-";
+    } else {
+        return average(refresh_rates)
+    }
+    
 
 }
 
@@ -223,8 +269,11 @@ function getDeviceInfo() {
                     .map((e) => e["channel"] + ": " + e["voltage_range"])
                     .join(", ")
             );
-            // cubismInitialization();
-            initChart();
+            if (!chart_initalised) {
+                initChart();
+                chart_initalised = true;
+            }
+            
         },
         error: (request, status, error) => {
             console.log("Error retrieving device data.");

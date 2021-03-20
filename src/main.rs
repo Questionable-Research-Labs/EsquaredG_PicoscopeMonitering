@@ -5,7 +5,7 @@ pub mod pico;
 use anyhow::Result;
 use console::{style, Term, };
 use actix_web::{middleware, web, App, HttpServer};
-
+use dialoguer::Select;
 
 use pico_sdk::{
     download::cache_resolution,
@@ -107,29 +107,82 @@ async fn main() -> Result<()> {
         }));
     streaming_device.start(capture_rate).unwrap();
     let terminal = Term::stdout();
-    loop {
-        terminal.write_line(&format!(
-            "{} {}",
-            style("Streaming!").blue().underlined().bold(),
-            style("Press enter to stop streaming").green()
-        )).unwrap();
-        terminal.read_line().unwrap();
-        terminal.clear_last_lines(2)?;
-        streaming_device.stop();
+    
+    let cli_options = &[
+        "Status",
+        "Stop/Start Stream",
+        "Save Data",
+        "Exit",
+    ];
+    let mut paused = false;
+    
+    let start_text = format!(
+        "{} | {}",
+        style("STARTED STREAMING").blue().bold(),
+        style("Control pannel at http://localhost:8000").green()
+    );
 
-        terminal.write_line(&format!(
-            "{} {}",
-            style("Paused").blue().underlined().bold(),
-            style("Press enter to start streaming").green()
-        )).unwrap();
-        terminal.read_line().unwrap();
-        terminal.clear_last_lines(2)?;
-        terminal.write_line(&format!(
-            "{}",
-            style("Starting").green()
-        )).unwrap();
+    terminal.write_line(&format!(
+        "\n{}\n{}\n{}\n",
+        style("~".repeat(start_text.len())).blue(),
+        start_text,
+        style("~".repeat(start_text.len())).blue()
+    )).unwrap();
+    loop {
+        // terminal.write_line(&format!(
+        //     "{} {}",
+        //     style("Streaming!").blue().underlined().bold(),
+        //     style("Press enter to stop streaming").green()
+        // )).unwrap();
+        // terminal.read_line().unwrap();
+        // terminal.clear_last_lines(2)?;
+        // streaming_device.stop();
+
+        // terminal.write_line(&format!(
+        //     "{} {}",
+        //     style("Paused").blue().underlined().bold(),
+        //     style("Press enter to start streaming").green()
+        // )).unwrap();
+        // terminal.read_line().unwrap();
+        // terminal.clear_last_lines(2)?;
+        // terminal.write_line(&format!(
+        //     "{}",
+        //     style("Starting").green()
+        // )).unwrap();
         
-        streaming_device.start(capture_rate).unwrap();
-        terminal.clear_last_lines(1)?;
+        // streaming_device.start(capture_rate).unwrap();
+        // terminal.clear_last_lines(1)?;
+        let cli_selection = Select::with_theme(&better_theme())
+            .with_prompt(&format!(
+                "{} {}",
+                style( if paused {"Paused"} else {"Streaming!"}).blue().underlined().bold(),
+                style("Send a command in the console").green()
+            ))
+            .default(0)
+            .items(cli_options)
+            .interact()
+            .unwrap();
+
+        match cli_options[cli_selection] {
+            "Status" => {println!("Stuff about Refresh rate, running modules and shit here")},
+            "Stop/Start Stream" => {
+                if paused {
+                    // Start Stream
+                    terminal.write_line(&format!(
+                        "{}",
+                        style("Resuming").green()
+                    )).unwrap();
+                    streaming_device.start(capture_rate).unwrap();
+                    paused = false;
+                } else {
+                    streaming_device.stop();
+                    paused = true;
+                }
+            },
+            "Save Data" => {println!("We shall pretend this does somthing like save")},
+            "Exit" => {streaming_device.stop(); return Ok(())}
+
+            _ => {println!("Unemplemented Selection!")}
+        }
     }
 }
