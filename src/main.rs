@@ -38,7 +38,7 @@ use native_dialog::FileDialog;
 
 #[actix_web::main]
 async fn main() -> Result<()> {
-    std::env::set_var("RUST_LOG", "actix_web=error,pico=info");
+    std::env::set_var("RUST_LOG", "actix_web=error,pico=debug");
     env_logger::init();
 
     // Setup actix webserver
@@ -216,18 +216,18 @@ fn write_data(state: web::Data<Mutex<AppState>>) {
         Ok(a) => a,
         Err(err) => {
             terminal.write_line(&format!("{} {}{}\n        {:?}\n", style("✘").bold().red(),
-                                         style("Error ").bold().blue(),
+                                         style("Error ").bold().red(),
                                          style("could not display dialog").bold().green(),
-                                         err));
+                                         err)).unwrap();
             return ();
         }
     } {
         Some(a) => a,
         None => {
             terminal.write_line(&format!("{} {}{}\n", style("✘").bold().red(),
-                                         style("Error ").bold().blue(),
+                                         style("Error ").bold().red(),
                                          style("no file selected").bold().green(),
-            ));
+            )).unwrap();
             return ();
         }
     };
@@ -237,9 +237,9 @@ fn write_data(state: web::Data<Mutex<AppState>>) {
     let mut file: File = match File::create(save_path) {
         Err(err) => {
             terminal.write_line(&format!("{} {}{}\n        {}\n", style("✘").bold().red(),
-                                         style("Error ").bold().blue(),
+                                         style("Error ").bold().red(),
                                          style("could not create file").bold().green(),
-                                         err));
+                                         err)).unwrap();
             return ();
         }
         Ok(a) => a
@@ -247,7 +247,7 @@ fn write_data(state: web::Data<Mutex<AppState>>) {
 
     let mut writer = csv::Writer::from_writer(vec![]);
 
-    let mut state_locked = state.lock().unwrap();
+    let state_locked = state.lock().unwrap();
 
     for (channel, voltages) in &state_locked.voltage_stream {
         for voltage in voltages {
@@ -256,5 +256,14 @@ fn write_data(state: web::Data<Mutex<AppState>>) {
     }
 
     let csv_data = String::from_utf8(writer.into_inner().unwrap()).unwrap();
-    file.write_all(csv_data.as_bytes());
+    match file.write_all(csv_data.as_bytes()) {
+        Err(err) => {
+            terminal.write_line(&format!("{} {}{}\n        {}\n", style("✘").bold().red(),
+                                         style("Error ").bold().red(),
+                                         style("could not write to file").bold().green(),
+                                         err)).unwrap();
+            return ();
+        }
+        Ok(_) => {}
+    }
 }

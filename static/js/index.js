@@ -27,6 +27,10 @@ const getData = async () => {
         url: "/api/data",
         success: function (data, text) {
             let voltages = data["voltages"];
+            /*
+            voltages = {"channel letter": [[volt,time since server start, time of record],]}
+            */
+            console.log("No.",voltages);
             if (Object.keys(voltages).length != 0) {
                 for (let channel of Object.keys(voltages)) {
                     if (current_voltage_points[channel] === undefined) {
@@ -160,22 +164,15 @@ function initChart() {
                         
                         onRefresh: function (chart) {
                             chart.data.datasets.forEach(function (dataset) {
-                                for (let point of current_voltage_points[dataset["label"]]) {
-                                  dataset.data.push(point);  
+                                console.log(current_voltage_points);
+                                if (current_voltage_points[dataset["label"]] !== undefined) {
+                                    for (let point of current_voltage_points[dataset["label"]]) {
+                                        dataset.data.push(point);  
+                                      }
+                                      current_voltage_points[dataset["label"]] = []
                                 }
-                                current_voltage_points[dataset["label"]] = []
-                            })
-                            // chart.data.datasets.forEach(function(dataset) {
 
-                            //   dataset.data.push({
-                
-                            //     x: Date.now(),
-                
-                            //     y: Math.random()
-                
-                            //   });
-                
-                            // });
+                            })
                         }
                     }
                 }],
