@@ -3,8 +3,7 @@ import { Modal } from "bootstrap";
 import {  } from "@popperjs/core";
 import { Chart } from "chart.js";
 import 'chartjs-plugin-streaming';
-import moment from 'moment';
-import { formatPrefix } from "d3-format";
+import "../css/main.scss";
 
 let data = {};
 let graph;

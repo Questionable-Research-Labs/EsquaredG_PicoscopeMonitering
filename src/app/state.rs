@@ -22,14 +22,16 @@ impl ToString for DeviceInfo {
 }
 
 pub struct AppState {
-    pub voltage: HashMap<String,Vec<(f32, u128, String)>>,
+    pub voltage_stream: HashMap<String,Vec<(f32, u128, String)>>,
+    pub voltage_file: HashMap<String,Vec<(f32, u128, String)>>,
     pub device_info: DeviceInfo
 }
 
 impl AppState {
     pub fn new(device_info: DeviceInfo) -> Self {
         AppState {
-            voltage: HashMap::new(),
+            voltage_stream: HashMap::new(),
+            voltage_file: HashMap::new(),
             device_info
         }
     }

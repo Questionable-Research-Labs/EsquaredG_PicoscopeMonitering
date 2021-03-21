@@ -268,8 +268,12 @@ pub fn voltage_capture_async(
             let value = match metric::Signifix::try_from(voltage) {
                 Ok(v) => {
                     let mut state_unlocked = state.lock().unwrap();
-                    let val = state_unlocked.voltage.entry(ch.to_string()).or_insert(vec!());   
+                    let val = state_unlocked.voltage_stream.entry(ch.to_string()).or_insert(vec!());   
                     val.push((voltage, instant.elapsed().as_millis(), format!("{}",Utc::now().to_rfc3339())));
+                    drop(val);
+                    let val = state_unlocked.voltage_file.entry(ch.to_string()).or_insert(vec!());   
+                    val.push((voltage, instant.elapsed().as_millis(), format!("{}",Utc::now().to_rfc3339())));
+                    
                     format!("{}", v)
                 }
                 Err(metric::Error::OutOfLowerBound(_)) => "0".to_string(),

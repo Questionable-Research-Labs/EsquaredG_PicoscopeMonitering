@@ -1,9 +1,10 @@
 #![forbid(unsafe_code)]
+
 pub mod app;
 pub mod pico;
 
 use anyhow::Result;
-use console::{style, Term, };
+use console::{style, Term};
 use actix_web::{middleware, web, App, HttpServer};
 use dialoguer::Select;
 
@@ -17,10 +18,10 @@ use crate::{
     app::{
         *,
         state::{
-            AppState, DeviceInfo
-        }
+            AppState, DeviceInfo,
+        },
     },
-    pico::*
+    pico::*,
 };
 
 use std::{
@@ -29,6 +30,10 @@ use std::{
 };
 
 use crate::app::state::ChannelInfo;
+use dialog::DialogBox;
+use std::fs::{File, OpenOptions};
+use std::io::{Read, Write};
+use std::collections::HashMap;
 
 #[actix_web::main]
 async fn main() -> Result<()> {
@@ -58,7 +63,7 @@ async fn main() -> Result<()> {
             .app_data(state2.clone())
             .wrap(middleware::Logger::default())
     })
-    .bind("127.0.0.1:8000")?;
+        .bind("127.0.0.1:8000")?;
 
     // Initlize picoscope
     let enumerator = DeviceEnumerator::with_resolution(cache_resolution());
@@ -78,7 +83,7 @@ async fn main() -> Result<()> {
             locked_state.device_info.channel_info.push(ChannelInfo {
                 channel: channel.to_string(),
                 virt_channels: 1,
-                voltage_range: details.configuration.range.get_max_scaled_value()
+                voltage_range: details.configuration.range.get_max_scaled_value(),
             })
         }
     }
@@ -89,11 +94,13 @@ async fn main() -> Result<()> {
     locked_state.device_info.refresh_rate = (&capture_rate).to_owned();
 
     drop(locked_state);
-    
+
     // Start the webserver
     web_server.run();
 
     let mut instant = Instant::now();
+
+    let state3 = state.clone();
 
     let _sub = streaming_device
         .events
@@ -101,13 +108,14 @@ async fn main() -> Result<()> {
             voltage_capture_async(
                 event,
                 &ch_units,
-                state.clone(),
+                state3.clone(),
                 &mut instant,
             );
         }));
+
     streaming_device.start(capture_rate).unwrap();
     let terminal = Term::stdout();
-    
+
     let cli_options = &[
         "Status",
         "Stop/Start Stream",
@@ -115,7 +123,7 @@ async fn main() -> Result<()> {
         "Exit",
     ];
     let mut paused = false;
-    
+
     let start_text = format!(
         "{} | {}",
         style("STARTED STREAMING").blue().bold(),
@@ -149,13 +157,13 @@ async fn main() -> Result<()> {
         //     "{}",
         //     style("Starting").green()
         // )).unwrap();
-        
+
         // streaming_device.start(capture_rate).unwrap();
         // terminal.clear_last_lines(1)?;
         let cli_selection = Select::with_theme(&better_theme())
             .with_prompt(&format!(
                 "{} {}",
-                style( if paused {"Paused"} else {"Streaming!"}).blue().underlined().bold(),
+                style(if paused { "Paused" } else { "Streaming!" }).blue().underlined().bold(),
                 style("Send a command in the console").green()
             ))
             .default(0)
@@ -164,7 +172,7 @@ async fn main() -> Result<()> {
             .unwrap();
 
         match cli_options[cli_selection] {
-            "Status" => {println!("Stuff about Refresh rate, running modules and shit here")},
+            "Status" => { println!("Stuff about Refresh rate, running modules and shit here") }
             "Stop/Start Stream" => {
                 if paused {
                     // Start Stream
@@ -178,11 +186,60 @@ async fn main() -> Result<()> {
                     streaming_device.stop();
                     paused = true;
                 }
-            },
-            "Save Data" => {println!("We shall pretend this does somthing like save")},
-            "Exit" => {streaming_device.stop(); return Ok(())}
+            }
+            "Save Data" => {
+                write_data(state.clone());
+            }
+            "Exit" => {
+                streaming_device.stop();
+                return Ok(());
+            }
 
-            _ => {println!("Unemplemented Selection!")}
+            _ => { println!("Unemplemented Selection!") }
         }
     }
+}
+
+fn write_data(state: web::Data<Mutex<AppState>>) {
+    let mut state_locked = state.lock().unwrap();
+    let current_dir = std::env::current_dir().unwrap();
+    let terminal = Term::stdout();
+
+
+    let mut save_path = dialog::FileSelection::new("Enter location to save the file to")
+        // .path(current_dir)
+        .show()
+        .expect("Could not display dialog box")
+        .unwrap();
+
+
+    #[cfg(target_os = "windows")]
+    save_path = save_path.replace("/", "\\");
+
+
+    println!("{}", save_path);
+
+    let mut file: File = match OpenOptions::new().write(true).create(true).open(save_path.as_str()) {
+        Err(err) => {
+            terminal.write_line(&format!("{} {}{}\n        {}\n", style("✘").bold().red(),
+                                         style("Error ").bold().blue(),
+                                         style("could not create file").bold().green(),
+                                         err));
+            return ();
+        }
+        Ok(a) => a
+    };
+
+    let mut writer = csv::Writer::from_writer(vec![]);
+
+    for (channel, voltages) in &state_locked.voltage_stream {
+        for voltage in voltages {
+            writer.write_record(&[format!("{}", channel), format!("{}", voltage.0), format!("{}", voltage.1)]).unwrap();
+        }
+    }
+
+    let csv_data = String::from_utf8(writer.into_inner().unwrap()).unwrap();
+    file.write_all(csv_data.as_bytes());
+
+    state_locked.voltage_stream = HashMap::new();
 }

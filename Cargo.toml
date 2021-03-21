@@ -19,6 +19,8 @@ futures = "0.3.8"
 serde_json = "1.0.60"
 log = "0.4.11"
 chrono = "0.4.19"
+dialog = "0.3.0"
+csv = "1.1.6"
 
 [dependencies.serde]
 version = "1.0"
