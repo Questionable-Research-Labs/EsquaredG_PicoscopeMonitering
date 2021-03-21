@@ -213,8 +213,8 @@ fn write_data(state: web::Data<Mutex<AppState>>) {
         .unwrap();
 
 
-    #[cfg(target_os = "windows")]
-    save_path = save_path.replace("/", "\\");
+    
+    save_path = save_path.replace("/", "\\"); #[cfg(target_os = "windows")]
 
 
     println!("{}", save_path);
