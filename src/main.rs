@@ -30,10 +30,11 @@ use std::{
 };
 
 use crate::app::state::ChannelInfo;
-use dialog::DialogBox;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::collections::HashMap;
+use std::path::Path;
+use native_dialog::FileDialog;
 
 #[actix_web::main]
 async fn main() -> Result<()> {
@@ -120,6 +121,7 @@ async fn main() -> Result<()> {
         "Status",
         "Stop/Start Stream",
         "Save Data",
+        "Clear memory",
         "Exit",
     ];
     let mut paused = false;
@@ -187,9 +189,8 @@ async fn main() -> Result<()> {
                     paused = true;
                 }
             }
-            "Save Data" => {
-                write_data(state.clone());
-            }
+            "Save Data" => write_data(state.clone()),
+            "Clear Memory" => clear_memory(state.clone()),
             "Exit" => {
                 streaming_device.stop();
                 return Ok(());
@@ -200,26 +201,40 @@ async fn main() -> Result<()> {
     }
 }
 
+fn clear_memory(state: web::Data<Mutex<AppState>>) {
+    state.lock().unwrap().voltage_stream = HashMap::new();
+}
+
 fn write_data(state: web::Data<Mutex<AppState>>) {
-    let mut state_locked = state.lock().unwrap();
-    let current_dir = std::env::current_dir().unwrap();
+    let cwd = std::env::current_dir().unwrap();
     let terminal = Term::stdout();
 
+    let save_path = match match FileDialog::new()
+        .set_location(&cwd)
+        .add_filter("CSV File", &["csv"])
+        .show_save_single_file() {
+        Ok(a) => a,
+        Err(err) => {
+            terminal.write_line(&format!("{} {}{}\n        {:?}\n", style("✘").bold().red(),
+                                         style("Error ").bold().blue(),
+                                         style("could not display dialog").bold().green(),
+                                         err));
+            return ();
+        }
+    } {
+        Some(a) => a,
+        None => {
+            terminal.write_line(&format!("{} {}{}\n", style("✘").bold().red(),
+                                         style("Error ").bold().blue(),
+                                         style("no file selected").bold().green(),
+            ));
+            return ();
+        }
+    };
 
-    let mut save_path = dialog::FileSelection::new("Enter location to save the file to")
-        // .path(current_dir)
-        .show()
-        .expect("Could not display dialog box")
-        .unwrap();
+    println!("{}", save_path.display());
 
-
-    
-    save_path = save_path.replace("/", "\\"); #[cfg(target_os = "windows")]
-
-
-    println!("{}", save_path);
-
-    let mut file: File = match OpenOptions::new().write(true).create(true).open(save_path.as_str()) {
+    let mut file: File = match File::create(save_path) {
         Err(err) => {
             terminal.write_line(&format!("{} {}{}\n        {}\n", style("✘").bold().red(),
                                          style("Error ").bold().blue(),
@@ -232,6 +247,8 @@ fn write_data(state: web::Data<Mutex<AppState>>) {
 
     let mut writer = csv::Writer::from_writer(vec![]);
 
+    let mut state_locked = state.lock().unwrap();
+
     for (channel, voltages) in &state_locked.voltage_stream {
         for voltage in voltages {
             writer.write_record(&[format!("{}", channel), format!("{}", voltage.0), format!("{}", voltage.1)]).unwrap();
@@ -240,6 +257,4 @@ fn write_data(state: web::Data<Mutex<AppState>>) {
 
     let csv_data = String::from_utf8(writer.into_inner().unwrap()).unwrap();
     file.write_all(csv_data.as_bytes());
-
-    state_locked.voltage_stream = HashMap::new();
 }
