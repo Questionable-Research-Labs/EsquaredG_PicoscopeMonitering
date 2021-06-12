@@ -34,8 +34,8 @@ pub fn api_index() -> HttpResponse {
 #[get("/data")]
 pub fn get_data(state: Data<Mutex<AppState>>) -> HttpResponse {
     let mut app_state = state.lock().unwrap();
-    let voltages = app_state.voltage_stream.clone();
-    app_state.voltage_stream.drain();
+    let voltages = app_state.voltage_queue.clone();
+    app_state.voltage_queue.drain();
     drop(app_state);
 
     let json_voltage = serde_json::to_string(&voltages).unwrap();

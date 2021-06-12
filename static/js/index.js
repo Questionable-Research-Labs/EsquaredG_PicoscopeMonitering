@@ -27,6 +27,7 @@ const getData = async () => {
         url: "/api/data",
         success: function (data, text) {
             let voltages = data["voltages"];
+            console.log(voltages);
             /*
             voltages = {"channel letter": [[volt,time since server start, time of record],]}
             */

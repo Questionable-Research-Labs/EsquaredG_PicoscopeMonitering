@@ -1,5 +1,9 @@
 use serde::Serialize;
-use std::collections::HashMap;
+
+use std::{collections::{HashMap,VecDeque},convert::TryFrom};
+use console::style;
+use signifix::metric;
+
 
 #[derive(Clone, Serialize)]
 pub struct ChannelInfo {
@@ -22,17 +26,20 @@ impl ToString for DeviceInfo {
 }
 
 pub struct AppState {
-    pub voltage_stream: HashMap<String,Vec<(f32, u128, String)>>,
-    pub voltage_file: HashMap<String,Vec<(f32, u128, String)>>,
-    pub device_info: DeviceInfo
+    pub voltage_stream: HashMap<String,Vec<(f64, u128, String)>>,
+    pub voltage_queue: HashMap<String,VecDeque<(f64, u128, String)>>,
+    pub device_info: DeviceInfo,
+    pub streaming_speed: u64,
 }
 
 impl AppState {
     pub fn new(device_info: DeviceInfo) -> Self {
         AppState {
             voltage_stream: HashMap::new(),
-            voltage_file: HashMap::new(),
-            device_info
+            voltage_queue: HashMap::new(),
+            device_info,
+            streaming_speed: 0u64
         }
     }
+
 }

@@ -1,25 +1,28 @@
-use actix_web::web;
-use signifix::metric;
-use anyhow::{anyhow, Result};
-use console::{style, Style};
-use dialoguer::{theme::ColorfulTheme, Select};
 use crate::app::state::AppState;
-use chrono::{Utc};
-
+use actix_web::web;
+use anyhow::{anyhow, Result};
+use chrono::Utc;
+use console::{style, Style, Term};
+use dialoguer::{theme::ColorfulTheme, Select};
+use pico_sdk::prelude::*;
+use signifix::metric;
 use std::{
     collections::{HashMap, VecDeque},
     convert::TryFrom,
     sync::{Arc, Mutex},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
-use pico_sdk::{
-    common::{PicoChannel, PicoRange},
-    device::{ChannelDetails, PicoDevice},
-    download::download_drivers_to_cache,
-    enumeration::{DeviceEnumerator, EnumerationError},
-    streaming::StreamingEvent,
-};
+use tracing::instrument;
+use tracing_subscriber;
+
+// use pico_sdk::{
+//     common::{PicoChannel, PicoRange},
+//     device::{ChannelDetails, PicoDevice},
+//     download::download_drivers_to_cache,
+//     enumeration::{DeviceEnumerator, EnumerationError},
+//     streaming::StreamingEvent,
+// };
 
 use log::debug;
 
@@ -34,28 +37,69 @@ pub fn better_theme() -> ColorfulTheme {
 }
 
 #[derive(Clone)]
-pub struct RateCalc {
-    queue: Arc<Mutex<VecDeque<u64>>>,
+struct RateCalc {
+    queue: Arc<Mutex<VecDeque<(Instant, u64)>>>,
+    window_size: Duration,
 }
 
 impl RateCalc {
-    pub fn new() -> Self {
+    pub fn new(window_size: Duration) -> Self {
         RateCalc {
             queue: Default::default(),
+            window_size,
         }
     }
 
     pub fn get_value(&self, latest: usize) -> u64 {
-        let mut calc = self.queue.lock().unwrap();
-        calc.push_back(latest as u64);
+        let mut queue = self.queue.lock().unwrap();
+        queue.push_back((Instant::now(), latest as u64));
 
-        while calc.len() > 20 {
-            calc.pop_front();
+        let mut max = 0;
+        let mut total = 0;
+        for (index, (timestamp, value)) in queue.iter_mut().enumerate() {
+            if timestamp.elapsed() > self.window_size {
+                max = index;
+            } else {
+                total += *value;
+            }
         }
 
-        (calc.iter().sum::<u64>() * 10) / calc.len() as u64
+        for _ in 0..max {
+            queue.pop_front();
+        }
+
+        queue
+            .front()
+            .map(|(f, _)| (total as f64 / f.elapsed().as_secs_f64()) as u64)
+            .unwrap_or(0)
     }
 }
+
+// pub fn main() -> Result<()> {
+//     if std::env::args().any(|a| a.contains("--trace")) {
+//         tracing_subscriber::fmt()
+//             .with_max_level(tracing::Level::TRACE)
+//             .with_span_events(tracing_subscriber::fmt::format::FmtSpan::ACTIVE)
+//             .init();
+//     }
+
+//     let enumerator = DeviceEnumerator::with_resolution(cache_resolution());
+//     let device = select_device(&enumerator)?;
+//     let streaming_device = device.into_streaming_device();
+//     let ch_units = configure_channels(&streaming_device);
+//     let samples_per_second = get_capture_rate();
+//     let capture_stats: Arc<dyn NewDataHandler> = CaptureStats::new(ch_units);
+//     streaming_device.new_data.subscribe(capture_stats.clone());
+
+//     println!("Press Enter to stop streaming");
+//     streaming_device.start(samples_per_second).unwrap();
+
+//     Term::stdout().read_line().unwrap();
+
+//     streaming_device.stop();
+
+//     Ok(())
+// }
 
 pub fn select_device(enumerator: &DeviceEnumerator) -> Result<PicoDevice> {
     loop {
@@ -71,7 +115,7 @@ pub fn select_device(enumerator: &DeviceEnumerator) -> Result<PicoDevice> {
             .iter()
             .map(|result| match result {
                 Ok(d) => format!("PicoScope {} ({})", d.variant, d.serial),
-                Err(EnumerationError::DriverLoadError { driver }) => {
+                Err(EnumerationError::DriverLoadError { driver, .. }) => {
                     format!("PicoScope {} (Missing Driver)", driver)
                 }
                 Err(EnumerationError::DriverError { driver, error }) => {
@@ -80,11 +124,9 @@ pub fn select_device(enumerator: &DeviceEnumerator) -> Result<PicoDevice> {
                 Err(EnumerationError::KernelDriverError { driver }) => {
                     format!("PicoScope {} (Kernel Driver Missing)", driver)
                 }
-                Err(EnumerationError::VersionError {
-                    driver,
-                    found: _,
-                    required: _,
-                }) => format!("PicoScope {} (Driver Version Error)", driver),
+                Err(EnumerationError::VersionError { driver, .. }) => {
+                    format!("PicoScope {} (Driver Version Error)", driver)
+                }
             })
             .collect::<Vec<String>>();
 
@@ -101,9 +143,9 @@ pub fn select_device(enumerator: &DeviceEnumerator) -> Result<PicoDevice> {
         println!();
 
         match &devices[device_selection] {
-            Ok(d) => return Ok(d.clone()),
+            Ok(d) => return Ok(d.open().unwrap()),
             Err(error) => match error {
-                EnumerationError::DriverLoadError { driver }
+                EnumerationError::DriverLoadError { driver, .. }
                 | EnumerationError::VersionError {
                     driver,
                     found: _,
@@ -119,32 +161,31 @@ pub fn select_device(enumerator: &DeviceEnumerator) -> Result<PicoDevice> {
     }
 }
 
-pub fn configure_channels(device: &PicoDevice) -> HashMap<PicoChannel, String> {
+pub fn configure_channels(device: &PicoStreamingDevice) -> HashMap<PicoChannel, String> {
     loop {
-        let mut channels: Vec<_> = {
-            device
-                .channels
-                .read()
-                .iter()
-                .map(|(ch, cfg)| (*ch, cfg.clone()))
-                .collect()
-        };
+        let mut channels = device
+            .get_channels()
+            .iter()
+            .map(|c| {
+                (
+                    *c,
+                    device.get_valid_ranges(*c),
+                    device.get_channel_config(*c),
+                )
+            })
+            .collect::<Vec<_>>();
 
-        channels.sort_by(|(a, _), (b, _)| a.cmp(b));
+        channels.sort_by(|(a, _, _), (b, _, _)| a.cmp(b));
 
         let mut channel_options = channels
             .iter()
-            .map(|(ch, details)| {
-                if let Some(ranges) = device.get_valid_ranges(*ch) {
-                    if details.configuration.enabled {
+            .map(|(ch, ranges, config)| {
+                if let Some(ranges) = ranges {
+                    if let Some(config) = config {
                         format!(
                             "Channel {} - {}",
                             ch,
-                            style(format!(
-                                "{} / {:?}",
-                                details.configuration.range, details.configuration.coupling
-                            ))
-                            .green()
+                            style(format!("{} / {:?}", config.range, config.coupling)).green()
                         )
                     } else if ranges.is_empty() {
                         format!(
@@ -165,10 +206,7 @@ pub fn configure_channels(device: &PicoDevice) -> HashMap<PicoChannel, String> {
             })
             .collect::<Vec<String>>();
 
-        if channels
-            .iter()
-            .any(|(_, details)| details.configuration.enabled)
-        {
+        if channels.iter().any(|(_, _, config)| config.is_some()) {
             channel_options.push("Channel configuration complete".to_string());
         }
 
@@ -185,14 +223,14 @@ pub fn configure_channels(device: &PicoDevice) -> HashMap<PicoChannel, String> {
         if ch_selection >= channels.len() {
             return channels
                 .iter()
-                .map(|(ch, details)| (*ch, details.configuration.range.get_units().short))
+                .map(|(ch, _, config)| config.map(|c| (*ch, c.range.get_units().short)))
+                .flatten()
                 .collect();
         }
 
-        let (edit_channel, edit_config) = channels[ch_selection].clone();
-        
+        let (edit_channel, ranges, _) = channels[ch_selection].clone();
 
-        if let Some(ranges) = device.get_valid_ranges(edit_channel) {
+        if let Some(ranges) = ranges {
             if ranges.is_empty() {
                 println!(
                     "{} cannot be configured with no probe connected",
@@ -202,14 +240,8 @@ pub fn configure_channels(device: &PicoDevice) -> HashMap<PicoChannel, String> {
                 continue;
             }
 
-            let channel = display_channel(edit_config.clone(), &ranges);
-            
-            if channel.configuration.enabled {
-                device.enable_channel(
-                    edit_channel,
-                    channel.configuration.range,
-                    channel.configuration.coupling,
-                );
+            if let Some(range) = select_range(&ranges) {
+                device.enable_channel(edit_channel, range, PicoCoupling::DC);
             } else {
                 device.disable_channel(edit_channel);
             }
@@ -222,7 +254,7 @@ pub fn configure_channels(device: &PicoDevice) -> HashMap<PicoChannel, String> {
     }
 }
 
-fn get_colour(ch: PicoChannel) -> Style {
+pub fn get_colour(ch: PicoChannel) -> Style {
     match ch {
         PicoChannel::A => Style::new().blue(),
         PicoChannel::B => Style::new().red(),
@@ -235,58 +267,81 @@ fn get_colour(ch: PicoChannel) -> Style {
     }
 }
 
-pub fn voltage_capture_async(
-    event: StreamingEvent,
-    ch_units: &HashMap<PicoChannel, String>,
+pub struct CaptureStats {
+    term: Term,
+    rate_calc: RateCalc,
+    ch_units: HashMap<PicoChannel, String>,
     state: web::Data<Mutex<AppState>>,
-    instant: &mut Instant,
-) {
-    if let StreamingEvent::Data {
-        length: _,
-        samples_per_second: _,
-        channels,
-    } = event
-    {
-        let mut data: Vec<(PicoChannel, usize, f32, String)> = channels
+    start_instant: Instant,
+}
+
+impl CaptureStats {
+    pub fn new(
+        ch_units: HashMap<PicoChannel, String>,
+        state: web::Data<Mutex<AppState>>,
+        start_instant: Instant,
+    ) -> Arc<Self> {
+        Arc::new(CaptureStats {
+            term: Term::stdout(),
+            rate_calc: RateCalc::new(Duration::from_secs(5)),
+            ch_units,
+            state,
+            start_instant
+        })
+    }
+
+}
+
+
+
+impl NewDataHandler for CaptureStats {
+    #[tracing::instrument(level = "trace", skip(self, event))]
+    fn handle_event(&self, event: &StreamingEvent) {
+        let mut data: Vec<(PicoChannel, usize, f64, String)> = event
+            .channels
             .iter()
             .map(|(ch, v)| {
                 (
                     *ch,
                     v.samples.len(),
                     v.scale_sample(0),
-                    ch_units.get(&ch).unwrap_or(&"".to_string()).to_string(),
+                    self.ch_units
+                        .get(&ch)
+                        .unwrap_or(&"".to_string())
+                        .to_string(),
                 )
             })
             .collect();
 
-        let (_, _samples, _, _) = data[0];
-
         data.sort_by(|a, b| a.0.cmp(&b.0));
 
-        for (ch, _, voltage, unit) in data {
-            let ch_col = get_colour(ch);
-            let value = match metric::Signifix::try_from(voltage) {
-                Ok(v) => {
-                    let mut state_unlocked = state.lock().unwrap();
-                    let val = state_unlocked.voltage_stream.entry(ch.to_string()).or_insert(vec!());   
-                    val.push((voltage, instant.elapsed().as_millis(), format!("{}",Utc::now().to_rfc3339())));
-                    drop(val);
-                    let val = state_unlocked.voltage_file.entry(ch.to_string()).or_insert(vec!());   
-                    val.push((voltage, instant.elapsed().as_millis(), format!("{}",Utc::now().to_rfc3339())));
-                    
-                    format!("{}", v)
-                }
-                Err(metric::Error::OutOfLowerBound(_)) => "0".to_string(),
-                _ => panic!("unknown error"),
-            };
+        let mut state_unlocked = self.state.lock().unwrap();
 
-            debug!(target: "pico",
-                "  {} - {}",
-                format!("{}", ch_col.apply_to(ch).bold()),
-                format!("{}", style(format!("{} {}", value, unit)).bold())
-            );
+        for value in data.clone() {
+            state_unlocked
+                .voltage_stream
+                .entry(value.0.to_string())
+                .or_insert(vec![])
+                .push((
+                    value.2,
+                    self.start_instant.elapsed().as_millis(),
+                    format!("{}", Utc::now().to_rfc3339()),
+                ));
+            state_unlocked
+                .voltage_queue
+                .entry(value.0.to_string())
+                .or_insert(VecDeque::new())
+                .push_back((
+                    value.2,
+                    self.start_instant.elapsed().as_millis(),
+                    format!("{}", Utc::now().to_rfc3339()),
+                ));
         }
-    };
+        state_unlocked.streaming_speed = self.rate_calc.get_value(event.length);
+        drop(state_unlocked);
+        
+        
+    }
 }
 
 pub fn get_capture_rate() -> u32 {
@@ -326,7 +381,7 @@ pub fn get_capture_rate() -> u32 {
     rates[rate_selection]
 }
 
-fn display_channel(channel: ChannelDetails, ranges: &[PicoRange]) -> ChannelDetails {
+pub fn select_range(ranges: &[PicoRange]) -> Option<PicoRange> {
     let mut range_options: Vec<String> = ranges.iter().map(|r| format!("{}", r)).collect();
     range_options.push("Disabled".to_string());
 
@@ -340,13 +395,30 @@ fn display_channel(channel: ChannelDetails, ranges: &[PicoRange]) -> ChannelDeta
         .interact()
         .unwrap();
 
-    let mut channel = channel;
-
-    channel.configuration.enabled = range_selection < ranges.len();
-
-    if channel.configuration.enabled {
-        channel.configuration.range = ranges[range_selection];
+    if range_selection >= ranges.len() {
+        None
+    } else {
+        Some(ranges[range_selection])
     }
+}
 
-    channel
+pub fn print_stats(state: &web::Data<Mutex<AppState>>) {
+    let unlocked_state = state.lock().unwrap();
+    println!(
+        "{} @ {}",
+        format!("{}", style("Streaming").bold()),
+        format!(
+            "{}",
+            style(format!(
+                "{}S/s",
+                match metric::Signifix::try_from(unlocked_state.streaming_speed) {
+                    Ok(v) => format!("{}", v),
+                    Err(metric::Error::OutOfLowerBound(_)) => "0".to_string(),
+                    _ => panic!("unknown error"),
+                }
+            ))
+            .bold()
+        )
+    );
+    drop(unlocked_state)
 }
