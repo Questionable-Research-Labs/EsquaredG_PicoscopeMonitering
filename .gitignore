@@ -18,3 +18,5 @@ static/css/main.css
 
 static/js/bundle.*
 .sass-cache/
+
+data-analysis/*.data.csv
