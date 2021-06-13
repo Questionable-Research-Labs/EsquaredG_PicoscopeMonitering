@@ -13,19 +13,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use tracing::instrument;
-use tracing_subscriber;
-
-// use pico_sdk::{
-//     common::{PicoChannel, PicoRange},
-//     device::{ChannelDetails, PicoDevice},
-//     download::download_drivers_to_cache,
-//     enumeration::{DeviceEnumerator, EnumerationError},
-//     streaming::StreamingEvent,
-// };
-
-use log::debug;
-
 pub fn better_theme() -> ColorfulTheme {
     ColorfulTheme {
         defaults_style: Style::new(),
@@ -297,14 +284,18 @@ impl CaptureStats {
 impl NewDataHandler for CaptureStats {
     #[tracing::instrument(level = "trace", skip(self, event))]
     fn handle_event(&self, event: &StreamingEvent) {
-        let mut data: Vec<(PicoChannel, usize, f64, String)> = event
+        let scaled_samples: Vec<Vec<f64>> = event.channels.iter().map(|(ch,block)| {
+            block.scale_samples()
+        }).collect();
+        // println!("Length: {:?} DataBlock: {:?}",event.length,scaled_samples);
+        let mut data: Vec<(PicoChannel, usize, Vec<f64>, String)> = event
             .channels
             .iter()
             .map(|(ch, v)| {
                 (
                     *ch,
                     v.samples.len(),
-                    v.scale_sample(0),
+                    v.scale_samples(),
                     self.ch_units
                         .get(&ch)
                         .unwrap_or(&"".to_string())
@@ -316,27 +307,41 @@ impl NewDataHandler for CaptureStats {
         data.sort_by(|a, b| a.0.cmp(&b.0));
 
         let mut state_unlocked = self.state.lock().unwrap();
+        // println!("Data Len {:?}",data);
 
-        for value in data.clone() {
-            state_unlocked
+        for channel in data.clone() {
+            // Calculate the time range
+            if state_unlocked.voltage_stream.contains_key(&channel.1.to_string()) {
+                let last_block_time = state_unlocked.voltage_stream[&channel.1.to_string()].last().unwrap().1;
+                let current_block_time = self.start_instant.elapsed().as_millis();
+                let scaler: usize = (current_block_time - last_block_time) as usize / channel.2.len();
+                let time_range: Vec<usize> = (0..channel.2.len()).map(|v| v*scaler ).collect();
+                
+
+            }
+
+            for value in channel.2 {
+                state_unlocked
                 .voltage_stream
-                .entry(value.0.to_string())
+                .entry(channel.1.to_string())
                 .or_insert(vec![])
                 .push((
-                    value.2,
+                    value,
                     self.start_instant.elapsed().as_millis(),
-                    format!("{}", Utc::now().to_rfc3339()),
+                    // format!("{}", Utc::now().to_rfc3339()),
                 ));
             state_unlocked
                 .voltage_queue
-                .entry(value.0.to_string())
+                .entry(channel.1.to_string())
                 .or_insert(VecDeque::new())
                 .push_back((
-                    value.2,
+                    value,
                     self.start_instant.elapsed().as_millis(),
-                    format!("{}", Utc::now().to_rfc3339()),
+                    // format!("{}", Utc::now().to_rfc3339()),
                 ));
         }
+            }
+
         state_unlocked.streaming_speed = self.rate_calc.get_value(event.length);
         drop(state_unlocked);
         

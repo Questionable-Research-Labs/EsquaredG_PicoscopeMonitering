@@ -26,8 +26,8 @@ impl ToString for DeviceInfo {
 }
 
 pub struct AppState {
-    pub voltage_stream: HashMap<String,Vec<(f64, u128, String)>>,
-    pub voltage_queue: HashMap<String,VecDeque<(f64, u128, String)>>,
+    pub voltage_stream: HashMap<String,Vec<(f64, u128)>>,
+    pub voltage_queue: HashMap<String,VecDeque<(f64, u128)>>,
     pub device_info: DeviceInfo,
     pub streaming_speed: u64,
 }
