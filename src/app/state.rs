@@ -1,6 +1,10 @@
 use serde::Serialize;
 
-use std::{collections::{HashMap,VecDeque},convert::TryFrom};
+use std::{
+    collections::{HashMap,VecDeque},
+    convert::TryFrom,
+    time::{Duration,Instant}
+};
 use console::style;
 use signifix::metric;
 
@@ -26,10 +30,11 @@ impl ToString for DeviceInfo {
 }
 
 pub struct AppState {
-    pub voltage_stream: HashMap<String,Vec<(f64, u128, String)>>,
-    pub voltage_queue: HashMap<String,VecDeque<(f64, u128, String)>>,
+    pub voltage_stream: HashMap<String,Vec<(f64, u128)>>,
+    pub voltage_queue: HashMap<String,VecDeque<(f64, u128)>>,
     pub device_info: DeviceInfo,
     pub streaming_speed: u64,
+    pub start_time: Instant
 }
 
 impl AppState {
@@ -38,7 +43,8 @@ impl AppState {
             voltage_stream: HashMap::new(),
             voltage_queue: HashMap::new(),
             device_info,
-            streaming_speed: 0u64
+            streaming_speed: 0u64,
+            start_time: Instant::now()
         }
     }
 
