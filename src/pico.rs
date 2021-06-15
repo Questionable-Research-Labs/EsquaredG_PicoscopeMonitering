@@ -8,6 +8,7 @@ use pico_sdk::prelude::*;
 use signifix::metric;
 use std::{
     collections::{HashMap, VecDeque},
+    iter::Iterator,
     convert::TryFrom,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
@@ -284,6 +285,7 @@ impl CaptureStats {
 impl NewDataHandler for CaptureStats {
     #[tracing::instrument(level = "trace", skip(self, event))]
     fn handle_event(&self, event: &StreamingEvent) {
+        let start = Instant::now();
         let scaled_samples: Vec<Vec<f64>> = event.channels.iter().map(|(ch,block)| {
             block.scale_samples()
         }).collect();
@@ -310,41 +312,52 @@ impl NewDataHandler for CaptureStats {
         // println!("Data Len {:?}",data);
 
         for channel in data.clone() {
-            // Calculate the time range
-            if state_unlocked.voltage_stream.contains_key(&channel.1.to_string()) {
-                let last_block_time = state_unlocked.voltage_stream[&channel.1.to_string()].last().unwrap().1;
-                let current_block_time = self.start_instant.elapsed().as_millis();
-                let scaler: usize = (current_block_time - last_block_time) as usize / channel.2.len();
-                let time_range: Vec<usize> = (0..channel.2.len()).map(|v| v*scaler ).collect();
+            let key = channel.1.to_string();
+            // Estimate the times that each data point was generated
+            let current_block_time = self.start_instant.elapsed().as_millis();
+            let scaler: usize;
+            if state_unlocked.voltage_stream.contains_key(&key) {
+                let last_block_time = state_unlocked.voltage_stream[&key].last().unwrap().1;
                 
-
+                scaler = (current_block_time - last_block_time) as usize / channel.2.len();
+            } else {
+                // Estimate time that picoscope started
+                let first_time = current_block_time - (1 / state_unlocked.device_info.refresh_rate) as u128 * channel.2.len() as u128;
+                scaler = (current_block_time - first_time) as usize / channel.2.len();
+                // Initialize channel in stream
             }
+            let time_range: Vec<u128> = (0..channel.2.len()).map(|v| (v*scaler )as u128 ).collect();
+            
+            let timestamped_data: Vec<(f64,u128)> = channel.2.into_iter().zip(time_range).collect();
 
-            for value in channel.2 {
-                state_unlocked
-                .voltage_stream
-                .entry(channel.1.to_string())
-                .or_insert(vec![])
-                .push((
-                    value,
-                    self.start_instant.elapsed().as_millis(),
-                    // format!("{}", Utc::now().to_rfc3339()),
-                ));
-            state_unlocked
-                .voltage_queue
-                .entry(channel.1.to_string())
-                .or_insert(VecDeque::new())
-                .push_back((
-                    value,
-                    self.start_instant.elapsed().as_millis(),
-                    // format!("{}", Utc::now().to_rfc3339()),
-                ));
+            (*state_unlocked.voltage_stream.get_mut(&key).unwrap()).extend(timestamped_data.clone().into_iter());
+            (*state_unlocked.voltage_queue.get_mut(&key).unwrap()).extend(timestamped_data.clone().into_iter());
+            
+            
+            // for value in channel.2 {
+            //     state_unlocked
+            //     .voltage_stream
+            //     .entry(channel.1.to_string())
+            //     .or_insert(vec![])
+            //     .push((
+            //         value,
+            //         self.start_instant.elapsed().as_millis(),
+            //         // format!("{}", Utc::now().to_rfc3339()),
+            //     ));
+        //     state_unlocked
+        //         .voltage_queue
+        //         .entry(channel.1.to_string())
+        //         .or_insert(VecDeque::new())
+        //         .push_back((
+        //             value,
+        //             self.start_instant.elapsed().as_millis(),
+        //             // format!("{}", Utc::now().to_rfc3339()),
+        //         ));
         }
-            }
 
         state_unlocked.streaming_speed = self.rate_calc.get_value(event.length);
         drop(state_unlocked);
-        
+        println!("Time taking for data collection is {:?} ms",Instant::now()-start);
         
     }
 }

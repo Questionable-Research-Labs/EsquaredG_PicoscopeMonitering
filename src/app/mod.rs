@@ -7,7 +7,8 @@ use actix_web::{
 };
 
 use std::{
-    sync::Mutex
+    sync::Mutex,
+    collections::{HashMap, VecDeque},
 };
 
 use super::state::AppState;
@@ -34,9 +35,12 @@ pub fn api_index() -> HttpResponse {
 #[get("/data")]
 pub fn get_data(state: Data<Mutex<AppState>>) -> HttpResponse {
     let mut app_state = state.lock().unwrap();
-    let voltages: HashMap<String, VecDeque<(f64, String)> = app_state.voltage_queue.clone().iter().map(|(channel,v)| 
-        v.map
-    );
+    let voltages: HashMap<String, VecDeque<(f64, String)>> = app_state.voltage_queue.clone().iter().map(|(channel,v)| 
+        (channel.to_owned(),
+            v.iter().map(|(voltage,time)|
+            (voltage.to_owned(),time.to_string())
+        ).collect())
+    ).collect();
     app_state.voltage_queue.drain();
     drop(app_state);
 
