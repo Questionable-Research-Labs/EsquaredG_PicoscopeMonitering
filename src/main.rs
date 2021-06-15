@@ -21,6 +21,7 @@ use crate::{
 use std::{
     sync::{Arc, Mutex},
     time::Instant,
+    io
 };
 
 use crate::app::state::ChannelInfo;
@@ -126,6 +127,8 @@ async fn main() -> Result<()> {
         ))
         .unwrap();
     loop {
+        // let _ = io::stdin().read(&mut [0u8]).unwrap();
+
         let cli_selection = Select::with_theme(&better_theme())
             .with_prompt(&format!(
                 "{} {}",

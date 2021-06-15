@@ -325,6 +325,8 @@ impl NewDataHandler for CaptureStats {
                 let first_time = current_block_time - (1 / state_unlocked.device_info.refresh_rate) as u128 * channel.2.len() as u128;
                 scaler = (current_block_time - first_time) as usize / channel.2.len();
                 // Initialize channel in stream
+                state_unlocked.voltage_stream.insert(key.clone(), Vec::new());
+                state_unlocked.voltage_queue.insert(key.clone(), VecDeque::new());
             }
             let time_range: Vec<u128> = (0..channel.2.len()).map(|v| (v*scaler )as u128 ).collect();
             
