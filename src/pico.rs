@@ -6,11 +6,13 @@ use console::{style, Style, Term};
 use dialoguer::{theme::ColorfulTheme, Select};
 use pico_sdk::prelude::*;
 use signifix::metric;
+use parking_lot::Mutex;
+
 use std::{
     collections::{HashMap, VecDeque},
     iter::Iterator,
     convert::TryFrom,
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -39,7 +41,7 @@ impl RateCalc {
     }
 
     pub fn get_value(&self, latest: usize) -> u64 {
-        let mut queue = self.queue.lock().unwrap();
+        let mut queue = self.queue.lock();
         queue.push_back((Instant::now(), latest as u64));
 
         let mut max = 0;
@@ -308,7 +310,7 @@ impl NewDataHandler for CaptureStats {
 
         data.sort_by(|a, b| a.0.cmp(&b.0));
 
-        let mut state_unlocked = self.state.lock().unwrap();
+        let mut state_unlocked = self.state.lock();
         // println!("Data Len {:?}",data);
 
         for channel in data.clone() {
@@ -423,7 +425,7 @@ pub fn select_range(ranges: &[PicoRange]) -> Option<PicoRange> {
 }
 
 pub fn print_stats(state: &web::Data<Mutex<AppState>>) {
-    let unlocked_state = state.lock().unwrap();
+    let unlocked_state = state.lock();
     println!(
         "{} @ {}",
         format!("{}", style("Streaming").bold()),

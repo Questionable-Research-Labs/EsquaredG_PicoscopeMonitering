@@ -18,8 +18,9 @@ use crate::{
     pico::*,
 };
 
+use parking_lot::Mutex;
 use std::{
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::Instant,
     io
 };
@@ -70,7 +71,7 @@ async fn main() -> Result<()> {
     let samples_per_second = get_capture_rate();
 
     // Initializing the state
-    let mut locked_state = state.lock().unwrap();
+    let mut locked_state = state.lock();
 
     for channel in streaming_device.get_channels().iter() {
         locked_state.device_info.channel_info.push(ChannelInfo {
@@ -175,7 +176,7 @@ async fn main() -> Result<()> {
 }
 
 fn clear_memory(state: web::Data<Mutex<AppState>>) {
-    state.lock().unwrap().voltage_stream = HashMap::new();
+    state.lock().voltage_stream = HashMap::new();
 }
 
 fn write_data(state: web::Data<Mutex<AppState>>) {
@@ -235,7 +236,7 @@ fn write_data(state: web::Data<Mutex<AppState>>) {
 
     let mut writer = csv::Writer::from_writer(vec![]);
 
-    let state_locked = state.lock().unwrap();
+    let state_locked = state.lock();
 
     for (channel, voltages) in &state_locked.voltage_stream {
         for voltage in voltages {
