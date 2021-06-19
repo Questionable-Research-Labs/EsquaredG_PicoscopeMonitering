@@ -5,9 +5,9 @@ pub mod pico;
 
 use actix_web::{middleware, web, App, HttpServer};
 use anyhow::Result;
+use chrono::prelude::Local;
 use console::{style, Term};
-use dialoguer::{Select,Input};
-use chrono::prelude::{DateTime, Local};
+use dialoguer::{Input, Select};
 
 use pico_sdk::prelude::*;
 
@@ -20,11 +20,12 @@ use crate::{
 };
 
 use parking_lot::Mutex;
-use std::{fmt::{format, write}, sync::Arc, time::Instant};
+use std::{
+    sync::Arc
+};
 
 use crate::app::state::ChannelInfo;
 use native_dialog::FileDialog;
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 
@@ -68,6 +69,7 @@ async fn main() -> Result<()> {
 
     // Initializing the state
     let mut locked_state = state.lock();
+    let mut recording_cache = locked_state.recording.clone();
 
     for channel in streaming_device.get_channels().iter() {
         locked_state.device_info.channel_info.push(ChannelInfo {
@@ -87,10 +89,7 @@ async fn main() -> Result<()> {
     // Start the webserver
     web_server.run();
 
-    let mut instant = Instant::now();
-
-    let capture_stats: Arc<dyn NewDataHandler> =
-        CaptureStats::new(ch_units, state.clone());
+    let capture_stats: Arc<dyn NewDataHandler> = CaptureStats::new(ch_units, state.clone());
     streaming_device.new_data.subscribe(capture_stats.clone());
 
     // let state3 = state.clone();
@@ -99,15 +98,6 @@ async fn main() -> Result<()> {
 
     streaming_device.start(samples_per_second).unwrap();
     let terminal = Term::stdout();
-
-    let cli_options = &[
-        "Status",
-        "Stop/Start Recording",
-        "Save Data without stopping",
-        "Clear memory",
-        "Exit",
-    ];
-    let mut recording = false;
 
     let start_text = format!(
         "{} | {}",
@@ -126,13 +116,28 @@ async fn main() -> Result<()> {
     loop {
         // let _ = io::stdin().read(&mut [0u8]).unwrap();
 
+        let cli_options = &[
+            "Status",
+            if recording_cache {
+                "Stop Recording"
+            } else {
+                "Start Recording"
+            },
+            "Save Data without stopping",
+            "Clear Memory",
+            "Exit",
+        ];
+
         let cli_selection = Select::with_theme(&better_theme())
             .with_prompt(&format!(
                 "{} {}",
-                style(if recording { "Paused" } else { "Streaming!" })
-                    .blue()
-                    .underlined()
-                    .bold(),
+                style(if recording_cache {
+                    style("Recording!").green()
+                } else {
+                    style("Not Recording").red()
+                })
+                .underlined()
+                .bold(),
                 style("Send a command in the console").green()
             ))
             .default(0)
@@ -144,22 +149,36 @@ async fn main() -> Result<()> {
             "Status" => {
                 print_stats(&state);
             }
-            "Stop/Start Recording" => {
-                if recording {
-                    // Start Stream
-                    terminal
-                        .write_line(&format!("{}", style("Resuming").green()))
-                        .unwrap();
-                    recording = false;
-                    let mut instant = Instant::now();
-                } else {
-                    let cli_selection = Input::with_theme(&better_theme()).default(String::from("untitled_run")).interact().unwrap();
-                    write_data(state.clone(),Some(format!("{}_{}",Local::now().format("%F_%T"),cli_selection)));
-                    recording = true;
-                }
+            "Stop Recording" => {
+                let cli_selection = Input::with_theme(&better_theme())
+                    .default(String::from("untitled_run"))
+                    .interact()
+                    .unwrap();
+                write_data(
+                    state.clone(),
+                    Some(format!(
+                        "{}_{}",
+                        Local::now().format("%F_%T"),
+                        cli_selection
+                    )),
+                );
+                recording_cache = false;
+                let mut unlocked_state = state.lock();
+                unlocked_state.recording = false;
+                drop(unlocked_state);
+            }
+            "Start Recording" => {
+                // Start Stream
+                terminal
+                    .write_line(&format!("{}", style("Resuming").green()))
+                    .unwrap();
+                recording_cache = true;
+                let mut unlocked_state = state.lock();
+                unlocked_state.recording = true;
+                drop(unlocked_state);
             }
             "Save Data without stopping" => write_data(state.clone(), None),
-            "Clear Memory" => clear_memory(state.clone()),
+            "Clear Memory" => { let _ = clear_and_get_memory(state.clone(),true);},
             "Exit" => {
                 streaming_device.stop();
                 return Ok(());
@@ -172,54 +191,54 @@ async fn main() -> Result<()> {
     }
 }
 
-fn clear_memory(state: web::Data<Mutex<AppState>>) {
-    state.lock().voltage_stream = HashMap::new();
-}
+
 
 fn write_data(state: web::Data<Mutex<AppState>>, defaults: Option<String>) {
     let cwd = std::env::current_dir().unwrap();
     let terminal = Term::stdout();
     let save_path;
-    
+
     if !defaults.is_none() {
-        save_path = cwd.join(format!("data_output/{}.csv",defaults.unwrap()));
+        save_path = cwd.join(format!("data_output/{}.csv", defaults.unwrap()));
     } else {
         save_path = match match FileDialog::new()
-        .set_location(&cwd)
-        .add_filter("CSV File", &["csv"])
-        .show_save_single_file()
-    {
-        Ok(a) => a,
-        Err(err) => {
-            terminal
-                .write_line(&format!(
-                    "{} {}{}\n        {:?}\n",
-                    style("✘").bold().red(),
-                    style("Error ").bold().red(),
-                    style("could not display dialog").bold().green(),
-                    err
-                ))
-                .unwrap();
-            return ();
-        }
-    } {
-        Some(a) => a,
-        None => {
-            terminal
-                .write_line(&format!(
-                    "{} {}{}\n",
-                    style("✘").bold().red(),
-                    style("Error ").bold().red(),
-                    style("no file selected").bold().green(),
-                ))
-                .unwrap();
-            return ();
-        }
-    };
+            .set_location(&cwd)
+            .add_filter("CSV File", &["csv"])
+            .show_save_single_file()
+        {
+            Ok(a) => a,
+            Err(err) => {
+                terminal
+                    .write_line(&format!(
+                        "{} {}{}\n        {:?}\n",
+                        style("✘").bold().red(),
+                        style("Error ").bold().red(),
+                        style("could not display dialog").bold().green(),
+                        err
+                    ))
+                    .unwrap();
+                return ();
+            }
+        } {
+            Some(a) => a,
+            None => {
+                terminal
+                    .write_line(&format!(
+                        "{} {}{}\n",
+                        style("✘").bold().red(),
+                        style("Error ").bold().red(),
+                        style("no file selected").bold().green(),
+                    ))
+                    .unwrap();
+                return ();
+            }
+        };
     }
-    
 
-    println!("{}", save_path.display());
+    println!("Saving to: {}", save_path.display());
+    terminal
+        .write_line(&format!("{} {}", "⌛", style("Saving... ").bold(),))
+        .unwrap();
 
     let mut file: File = match File::create(save_path) {
         Err(err) => {
@@ -240,14 +259,14 @@ fn write_data(state: web::Data<Mutex<AppState>>, defaults: Option<String>) {
     let mut writer = csv::Writer::from_writer(vec![]);
 
     let state_locked = state.lock();
+    writer
+        .write_record(&[format!("channel"), format!("voltage")])
+        .unwrap();
 
     for (channel, voltages) in state_locked.voltage_stream.clone().into_iter() {
         for voltage in voltages {
             writer
-                .write_record(&[
-                    format!("{}", channel),
-                    format!("{}", voltage)
-                ])
+                .write_record(&[format!("{}", channel), format!("{}", voltage)])
                 .unwrap();
         }
     }

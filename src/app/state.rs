@@ -31,7 +31,8 @@ pub struct AppState {
     pub voltage_queue: HashMap<String,VecDeque<f64>>,
     pub device_info: DeviceInfo,
     pub streaming_speed: u64,
-    pub start_time: Instant
+    pub start_time: Instant,
+    pub recording: bool,
 }
 
 impl AppState {
@@ -41,7 +42,8 @@ impl AppState {
             voltage_queue: HashMap::new(),
             device_info,
             streaming_speed: 0u64,
-            start_time: Instant::now()
+            start_time: Instant::now(),
+            recording: false
         }
     }
 

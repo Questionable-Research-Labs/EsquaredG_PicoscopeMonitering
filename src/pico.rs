@@ -3,15 +3,15 @@ use actix_web::web;
 use anyhow::{anyhow, Result};
 use console::{style, Style};
 use dialoguer::{theme::ColorfulTheme, Select};
-use pico_sdk::prelude::*;
-use signifix::metric;
 use parking_lot::Mutex;
+use pico_sdk::prelude::*;
 use procinfo::pid::statm_self;
+use signifix::metric;
 
 use std::{
     collections::{HashMap, VecDeque},
-    iter::Iterator,
     convert::TryFrom,
+    iter::Iterator,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -274,49 +274,52 @@ impl CaptureStats {
             state,
         })
     }
-
 }
-
-
 
 impl NewDataHandler for CaptureStats {
     #[tracing::instrument(level = "trace", skip(self, event))]
     fn handle_event(&self, event: &StreamingEvent) {
-        
-        let mut data: Vec<(PicoChannel, usize, Vec<f64>, String)> = event
-            .channels
-            .iter()
-            .map(|(ch, v)| {
-                (
-                    *ch,
-                    v.samples.len(),
-                    v.scale_samples(),
-                    self.ch_units
-                        .get(&ch)
-                        .unwrap_or(&"".to_string())
-                        .to_string(),
-                )
-            })
-            .collect();
-
-        data.sort_by(|a, b| a.0.cmp(&b.0));
-
         let mut state_unlocked = self.state.lock();
-        // println!("Data Len {:?}",data);
+        if state_unlocked.recording {
+            let mut data: Vec<(PicoChannel, usize, Vec<f64>, String)> = event
+                .channels
+                .iter()
+                .map(|(ch, v)| {
+                    (
+                        *ch,
+                        v.samples.len(),
+                        v.scale_samples(),
+                        self.ch_units
+                            .get(&ch)
+                            .unwrap_or(&"".to_string())
+                            .to_string(),
+                    )
+                })
+                .collect();
 
-        for channel in data.clone() {
-            let key = channel.1.to_string();
-            
+            data.sort_by(|a, b| a.0.cmp(&b.0));
 
-            (*state_unlocked.voltage_stream.entry(key.clone()).or_insert_with(|| Vec::new())).extend(channel.2.clone().into_iter());
-            (*state_unlocked.voltage_queue.entry(key.clone()).or_insert_with(|| VecDeque::new())).extend(channel.2.clone().into_iter());
-            
+            // println!("Data Len {:?}",data);
+
+            for channel in data.clone() {
+                let key = channel.1.to_string();
+
+                (*state_unlocked
+                    .voltage_stream
+                    .entry(key.clone())
+                    .or_insert_with(|| Vec::new()))
+                .extend(channel.2.clone().into_iter());
+                (*state_unlocked
+                    .voltage_queue
+                    .entry(key.clone())
+                    .or_insert_with(|| VecDeque::new()))
+                .extend(channel.2.clone().into_iter());
+            }
         }
 
         state_unlocked.streaming_speed = self.rate_calc.get_value(event.length);
         drop(state_unlocked);
         // println!("Time taking for data collection is {:?} ms",Instant::now()-start);
-        
     }
 }
 
@@ -379,7 +382,6 @@ pub fn select_range(ranges: &[PicoRange]) -> Option<PicoRange> {
 }
 
 pub fn print_stats(state: &web::Data<Mutex<AppState>>) {
-
     let unlocked_state = state.lock();
     // Streaming Rate
     println!(
@@ -402,26 +404,42 @@ pub fn print_stats(state: &web::Data<Mutex<AppState>>) {
     println!(
         "{} -> {}",
         format!("{}", style("Data Collected").green().bold()),
-        style(format!(
-            "{} samples",
-            &unlocked_state.voltage_stream.len()
-            
-        )).bold()
+        style(format!("{} samples", &unlocked_state.voltage_stream.len())).bold()
     );
     // Attempt to get memory usage
-    let memory_usage = format!("{}",match statm_self() {
-        Ok(s) => format!( "{}B",
-                match metric::Signifix::try_from(s.size) {
+    let memory_usage = format!(
+        "{}",
+        match statm_self() {
+            Ok(s) => format!(
+                "{}B",
+                match metric::Signifix::try_from(s.data) {
                     Ok(v) => format!("{}", v),
                     Err(metric::Error::OutOfLowerBound(_)) => "0".to_string(),
-                    _ => panic!("unknown error")
-        }),
-        Err(_) => format!("<Unsupported OS>"),
-    });
+                    _ => panic!("unknown error"),
+                }
+            ),
+            Err(_) => format!("<Unsupported OS>"),
+        }
+    );
     println!(
         "{} -> {}",
         format!("{}", style("Memory Usage").green().bold()),
         style(memory_usage).bold()
     );
     drop(unlocked_state)
+}
+pub fn clear_and_get_memory(state: web::Data<Mutex<AppState>>,completely_clear: bool) -> HashMap<String, VecDeque<f64>> {
+    let mut state_unlocked = state.lock();
+    let voltages: HashMap<String, VecDeque<f64>> = state_unlocked.voltage_queue.clone();
+    if completely_clear {
+        state_unlocked.voltage_queue.clear();
+        state_unlocked.voltage_stream.clear();
+    } else {
+        for channel in voltages.keys() {
+            state_unlocked.voltage_queue.get_mut(channel).unwrap().clear()
+        }
+    }
+    
+    drop(state_unlocked);
+    return voltages
 }

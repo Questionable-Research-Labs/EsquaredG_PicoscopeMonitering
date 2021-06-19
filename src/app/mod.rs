@@ -8,9 +8,10 @@ use actix_web::{
 use parking_lot::Mutex;
 
 use std::{
-    collections::{HashMap, VecDeque},
     time::Instant
 };
+
+use crate::pico::clear_and_get_memory;
 
 use super::state::AppState;
 
@@ -36,12 +37,7 @@ pub fn api_index() -> HttpResponse {
 #[get("/data")]
 pub fn get_data(state: Data<Mutex<AppState>>) -> HttpResponse {
     let start = Instant::now();
-    let mut app_state = state.lock();
-    let voltages: HashMap<String, VecDeque<f64>> = app_state.voltage_queue.clone();
-    for channel in voltages.keys() {
-        app_state.voltage_queue.get_mut(channel).unwrap().clear()
-    }
-    drop(app_state);
+    let voltages = clear_and_get_memory(state.clone(),false);
 
 
     let json_voltage = serde_json::to_string(&voltages).unwrap();
