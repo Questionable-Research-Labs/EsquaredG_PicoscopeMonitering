@@ -20,5 +20,6 @@ static/js/bundle.*
 .sass-cache/
 
 data-analysis/*.data.csv
-data-analysis/graphs/
+data-analysis/graphs/*
 data_output/
+data-analysis/graphs/

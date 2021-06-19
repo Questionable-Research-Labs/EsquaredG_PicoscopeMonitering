@@ -2,6 +2,7 @@
 
 pub mod app;
 pub mod pico;
+pub mod example_classification;
 
 use actix_web::{middleware, web, App, HttpServer};
 use anyhow::Result;
@@ -17,6 +18,7 @@ use crate::{
         *,
     },
     pico::*,
+    example_classification::initialize_example_classification
 };
 
 use parking_lot::Mutex;
@@ -124,6 +126,7 @@ async fn main() -> Result<()> {
                 "Start Recording"
             },
             "Save Data without stopping",
+            "Start Example AI",
             "Clear Memory",
             "Exit",
         ];
@@ -147,7 +150,7 @@ async fn main() -> Result<()> {
 
         match cli_options[cli_selection] {
             "Status" => {
-                print_stats(&state);
+                print_stats(&state.clone());
             }
             "Stop Recording" => {
                 let cli_selection = Input::with_theme(&better_theme())
@@ -179,6 +182,9 @@ async fn main() -> Result<()> {
             }
             "Save Data without stopping" => write_data(state.clone(), None),
             "Clear Memory" => { let _ = clear_and_get_memory(state.clone(),true);},
+            "Start Example AI" => {
+                initialize_example_classification(state.clone());
+            }
             "Exit" => {
                 streaming_device.stop();
                 return Ok(());
