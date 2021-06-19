@@ -6,7 +6,8 @@ pub mod pico;
 use actix_web::{middleware, web, App, HttpServer};
 use anyhow::Result;
 use console::{style, Term};
-use dialoguer::Select;
+use dialoguer::{Select,Input};
+use chrono::prelude::{DateTime, Local};
 
 use pico_sdk::prelude::*;
 
@@ -19,18 +20,13 @@ use crate::{
 };
 
 use parking_lot::Mutex;
-use std::{
-    sync::Arc,
-    time::Instant,
-    io
-};
+use std::{fmt::{format, write}, sync::Arc, time::Instant};
 
 use crate::app::state::ChannelInfo;
 use native_dialog::FileDialog;
 use std::collections::HashMap;
-use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
-use std::path::Path;
+use std::fs::File;
+use std::io::Write;
 
 #[actix_web::main]
 async fn main() -> Result<()> {
@@ -62,7 +58,7 @@ async fn main() -> Result<()> {
     })
     .bind("127.0.0.1:8000")?;
 
-    // Initlize picoscope
+    // Initialize picoscope
     let enumerator = DeviceEnumerator::with_resolution(cache_resolution());
     let device = select_device(&enumerator)?;
     let streaming_device = device.into_streaming_device();
@@ -91,10 +87,10 @@ async fn main() -> Result<()> {
     // Start the webserver
     web_server.run();
 
-    let instant = Instant::now();
+    let mut instant = Instant::now();
 
     let capture_stats: Arc<dyn NewDataHandler> =
-        CaptureStats::new(ch_units, state.clone(), instant);
+        CaptureStats::new(ch_units, state.clone());
     streaming_device.new_data.subscribe(capture_stats.clone());
 
     // let state3 = state.clone();
@@ -106,12 +102,12 @@ async fn main() -> Result<()> {
 
     let cli_options = &[
         "Status",
-        "Stop/Start Stream",
-        "Save Data",
+        "Stop/Start Recording",
+        "Save Data without stopping",
         "Clear memory",
         "Exit",
     ];
-    let mut paused = false;
+    let mut recording = false;
 
     let start_text = format!(
         "{} | {}",
@@ -133,7 +129,7 @@ async fn main() -> Result<()> {
         let cli_selection = Select::with_theme(&better_theme())
             .with_prompt(&format!(
                 "{} {}",
-                style(if paused { "Paused" } else { "Streaming!" })
+                style(if recording { "Paused" } else { "Streaming!" })
                     .blue()
                     .underlined()
                     .bold(),
@@ -148,20 +144,21 @@ async fn main() -> Result<()> {
             "Status" => {
                 print_stats(&state);
             }
-            "Stop/Start Stream" => {
-                if paused {
+            "Stop/Start Recording" => {
+                if recording {
                     // Start Stream
                     terminal
                         .write_line(&format!("{}", style("Resuming").green()))
                         .unwrap();
-                    streaming_device.start(samples_per_second).unwrap();
-                    paused = false;
+                    recording = false;
+                    let mut instant = Instant::now();
                 } else {
-                    streaming_device.stop();
-                    paused = true;
+                    let cli_selection = Input::with_theme(&better_theme()).default(String::from("untitled_run")).interact().unwrap();
+                    write_data(state.clone(),Some(format!("{}_{}",Local::now().format("%F_%T"),cli_selection)));
+                    recording = true;
                 }
             }
-            "Save Data" => write_data(state.clone()),
+            "Save Data without stopping" => write_data(state.clone(), None),
             "Clear Memory" => clear_memory(state.clone()),
             "Exit" => {
                 streaming_device.stop();
@@ -169,7 +166,7 @@ async fn main() -> Result<()> {
             }
 
             _ => {
-                println!("Unemplemented Selection!")
+                println!("Unimplemented Selection!")
             }
         }
     }
@@ -179,11 +176,15 @@ fn clear_memory(state: web::Data<Mutex<AppState>>) {
     state.lock().voltage_stream = HashMap::new();
 }
 
-fn write_data(state: web::Data<Mutex<AppState>>) {
+fn write_data(state: web::Data<Mutex<AppState>>, defaults: Option<String>) {
     let cwd = std::env::current_dir().unwrap();
     let terminal = Term::stdout();
-
-    let save_path = match match FileDialog::new()
+    let save_path;
+    
+    if !defaults.is_none() {
+        save_path = cwd.join(format!("data_output/{}.csv",defaults.unwrap()));
+    } else {
+        save_path = match match FileDialog::new()
         .set_location(&cwd)
         .add_filter("CSV File", &["csv"])
         .show_save_single_file()
@@ -215,6 +216,8 @@ fn write_data(state: web::Data<Mutex<AppState>>) {
             return ();
         }
     };
+    }
+    
 
     println!("{}", save_path.display());
 
@@ -238,13 +241,12 @@ fn write_data(state: web::Data<Mutex<AppState>>) {
 
     let state_locked = state.lock();
 
-    for (channel, voltages) in &state_locked.voltage_stream {
+    for (channel, voltages) in state_locked.voltage_stream.clone().into_iter() {
         for voltage in voltages {
             writer
                 .write_record(&[
                     format!("{}", channel),
-                    format!("{}", voltage.0),
-                    format!("{}", voltage.1),
+                    format!("{}", voltage)
                 ])
                 .unwrap();
         }

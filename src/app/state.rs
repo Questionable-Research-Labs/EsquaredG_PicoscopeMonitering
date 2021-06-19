@@ -2,11 +2,8 @@ use serde::Serialize;
 
 use std::{
     collections::{HashMap,VecDeque},
-    convert::TryFrom,
-    time::{Duration,Instant}
+    time::{Instant}
 };
-use console::style;
-use signifix::metric;
 
 
 #[derive(Clone, Serialize)]
@@ -30,8 +27,8 @@ impl ToString for DeviceInfo {
 }
 
 pub struct AppState {
-    pub voltage_stream: HashMap<String,Vec<(f64, u128)>>,
-    pub voltage_queue: HashMap<String,VecDeque<(f64, u128)>>,
+    pub voltage_stream: HashMap<String,Vec<f64>>,
+    pub voltage_queue: HashMap<String,VecDeque<f64>>,
     pub device_info: DeviceInfo,
     pub streaming_speed: u64,
     pub start_time: Instant

@@ -1,12 +1,12 @@
 use crate::app::state::AppState;
 use actix_web::web;
 use anyhow::{anyhow, Result};
-use chrono::Utc;
-use console::{style, Style, Term};
+use console::{style, Style};
 use dialoguer::{theme::ColorfulTheme, Select};
 use pico_sdk::prelude::*;
 use signifix::metric;
 use parking_lot::Mutex;
+use procinfo::pid::statm_self;
 
 use std::{
     collections::{HashMap, VecDeque},
@@ -258,25 +258,20 @@ pub fn get_colour(ch: PicoChannel) -> Style {
 }
 
 pub struct CaptureStats {
-    term: Term,
     rate_calc: RateCalc,
     ch_units: HashMap<PicoChannel, String>,
     state: web::Data<Mutex<AppState>>,
-    start_instant: Instant,
 }
 
 impl CaptureStats {
     pub fn new(
         ch_units: HashMap<PicoChannel, String>,
         state: web::Data<Mutex<AppState>>,
-        start_instant: Instant,
     ) -> Arc<Self> {
         Arc::new(CaptureStats {
-            term: Term::stdout(),
             rate_calc: RateCalc::new(Duration::from_secs(5)),
             ch_units,
             state,
-            start_instant
         })
     }
 
@@ -287,11 +282,7 @@ impl CaptureStats {
 impl NewDataHandler for CaptureStats {
     #[tracing::instrument(level = "trace", skip(self, event))]
     fn handle_event(&self, event: &StreamingEvent) {
-        let start = Instant::now();
-        let scaled_samples: Vec<Vec<f64>> = event.channels.iter().map(|(ch,block)| {
-            block.scale_samples()
-        }).collect();
-        // println!("Length: {:?} DataBlock: {:?}",event.length,scaled_samples);
+        
         let mut data: Vec<(PicoChannel, usize, Vec<f64>, String)> = event
             .channels
             .iter()
@@ -315,53 +306,16 @@ impl NewDataHandler for CaptureStats {
 
         for channel in data.clone() {
             let key = channel.1.to_string();
-            // Estimate the times that each data point was generated
-            let current_block_time = self.start_instant.elapsed().as_millis();
-            let scaler: usize;
-            if state_unlocked.voltage_stream.contains_key(&key) {
-                let last_block_time = state_unlocked.voltage_stream[&key].last().unwrap().1;
-                
-                scaler = (current_block_time - last_block_time) as usize / channel.2.len();
-            } else {
-                // Estimate time that picoscope started
-                let first_time = current_block_time - (1 / state_unlocked.device_info.refresh_rate) as u128 * channel.2.len() as u128;
-                scaler = (current_block_time - first_time) as usize / channel.2.len();
-                // Initialize channel in stream
-                state_unlocked.voltage_stream.insert(key.clone(), Vec::new());
-                state_unlocked.voltage_queue.insert(key.clone(), VecDeque::new());
-            }
-            let time_range: Vec<u128> = (0..channel.2.len()).map(|v| (v*scaler )as u128 ).collect();
             
-            let timestamped_data: Vec<(f64,u128)> = channel.2.into_iter().zip(time_range).collect();
 
-            (*state_unlocked.voltage_stream.get_mut(&key).unwrap()).extend(timestamped_data.clone().into_iter());
-            (*state_unlocked.voltage_queue.get_mut(&key).unwrap()).extend(timestamped_data.clone().into_iter());
+            (*state_unlocked.voltage_stream.entry(key.clone()).or_insert_with(|| Vec::new())).extend(channel.2.clone().into_iter());
+            (*state_unlocked.voltage_queue.entry(key.clone()).or_insert_with(|| VecDeque::new())).extend(channel.2.clone().into_iter());
             
-            
-            // for value in channel.2 {
-            //     state_unlocked
-            //     .voltage_stream
-            //     .entry(channel.1.to_string())
-            //     .or_insert(vec![])
-            //     .push((
-            //         value,
-            //         self.start_instant.elapsed().as_millis(),
-            //         // format!("{}", Utc::now().to_rfc3339()),
-            //     ));
-        //     state_unlocked
-        //         .voltage_queue
-        //         .entry(channel.1.to_string())
-        //         .or_insert(VecDeque::new())
-        //         .push_back((
-        //             value,
-        //             self.start_instant.elapsed().as_millis(),
-        //             // format!("{}", Utc::now().to_rfc3339()),
-        //         ));
         }
 
         state_unlocked.streaming_speed = self.rate_calc.get_value(event.length);
         drop(state_unlocked);
-        println!("Time taking for data collection is {:?} ms",Instant::now()-start);
+        // println!("Time taking for data collection is {:?} ms",Instant::now()-start);
         
     }
 }
@@ -425,10 +379,12 @@ pub fn select_range(ranges: &[PicoRange]) -> Option<PicoRange> {
 }
 
 pub fn print_stats(state: &web::Data<Mutex<AppState>>) {
+
     let unlocked_state = state.lock();
+    // Streaming Rate
     println!(
         "{} @ {}",
-        format!("{}", style("Streaming").bold()),
+        format!("{}", style("Streaming").green().bold()),
         format!(
             "{}",
             style(format!(
@@ -441,6 +397,31 @@ pub fn print_stats(state: &web::Data<Mutex<AppState>>) {
             ))
             .bold()
         )
+    );
+    // Data Collected
+    println!(
+        "{} -> {}",
+        format!("{}", style("Data Collected").green().bold()),
+        style(format!(
+            "{} samples",
+            &unlocked_state.voltage_stream.len()
+            
+        )).bold()
+    );
+    // Attempt to get memory usage
+    let memory_usage = format!("{}",match statm_self() {
+        Ok(s) => format!( "{}B",
+                match metric::Signifix::try_from(s.size) {
+                    Ok(v) => format!("{}", v),
+                    Err(metric::Error::OutOfLowerBound(_)) => "0".to_string(),
+                    _ => panic!("unknown error")
+        }),
+        Err(_) => format!("<Unsupported OS>"),
+    });
+    println!(
+        "{} -> {}",
+        format!("{}", style("Memory Usage").green().bold()),
+        style(memory_usage).bold()
     );
     drop(unlocked_state)
 }

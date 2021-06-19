@@ -37,14 +37,8 @@ pub fn api_index() -> HttpResponse {
 pub fn get_data(state: Data<Mutex<AppState>>) -> HttpResponse {
     let start = Instant::now();
     let mut app_state = state.lock();
-    let voltages: HashMap<String, VecDeque<(f64, String)>> = app_state.voltage_queue.clone().iter().map(|(channel,v)| 
-        (channel.to_owned(),
-            v.iter().map(|(voltage,time)|
-            (voltage.to_owned(),time.to_string())
-        ).collect())
-    ).collect();
-    let keys = app_state.voltage_queue.clone();
-    for channel in keys.keys() {
+    let voltages: HashMap<String, VecDeque<f64>> = app_state.voltage_queue.clone();
+    for channel in voltages.keys() {
         app_state.voltage_queue.get_mut(channel).unwrap().clear()
     }
     drop(app_state);

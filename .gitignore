@@ -21,3 +21,4 @@ static/js/bundle.*
 
 data-analysis/*.data.csv
 data-analysis/graphs/
+data_output/
