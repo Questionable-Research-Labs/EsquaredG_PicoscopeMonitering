@@ -1,4 +1,4 @@
-use crate::app::state::AppState;
+use crate::{app::state::AppState,virt_channels};
 use actix_web::web;
 use anyhow::{anyhow, Result};
 use console::{style, Style};
@@ -281,28 +281,30 @@ impl NewDataHandler for CaptureStats {
     fn handle_event(&self, event: &StreamingEvent) {
         let mut state_unlocked = self.state.lock();
         if state_unlocked.recording {
-            let mut data: Vec<(PicoChannel, usize, Vec<f64>, String)> = event
+            // Extract Data from event into useable format
+            let mut data: HashMap<PicoChannel, (usize, Vec<f64>, String)> = event
                 .channels
                 .iter()
                 .map(|(ch, v)| {
                     (
                         *ch,
-                        v.samples.len(),
-                        v.scale_samples(),
-                        self.ch_units
-                            .get(&ch)
-                            .unwrap_or(&"".to_string())
-                            .to_string(),
+                        (
+                            v.samples.len(),
+                            v.scale_samples(),
+                            self.ch_units
+                                .get(&ch)
+                                .unwrap_or(&"".to_string())
+                                .to_string(),
+                        )
                     )
                 })
                 .collect();
-
-            data.sort_by(|a, b| a.0.cmp(&b.0));
+            let synced_data = virt_channels::split_into_virt_channels(&data,state_unlocked.streaming_speed); 
 
             // println!("Data Len {:?}",data);
-
-            for channel in data.clone() {
-                let key = channel.1.to_string();
+            // Intergrate Channels into Data
+            for virtual_sample in synced_data {
+                let channel = virtual_sample.virt_channels.keys();
 
                 (*state_unlocked
                     .voltage_stream

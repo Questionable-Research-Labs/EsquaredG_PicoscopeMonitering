@@ -1,8 +1,9 @@
 #![forbid(unsafe_code)]
 
 pub mod app;
-pub mod pico;
 pub mod example_classification;
+pub mod pico;
+pub mod virt_channels;
 
 use actix_web::{middleware, web, App, HttpServer};
 use anyhow::Result;
@@ -17,24 +18,44 @@ use crate::{
         state::{AppState, DeviceInfo},
         *,
     },
+    example_classification::initialize_example_classification,
     pico::*,
-    example_classification::initialize_example_classification
 };
 
 use parking_lot::Mutex;
-use std::{
-    sync::Arc
-};
+use std::{io,io::prelude::Read, sync::Arc};
 
 use crate::app::state::ChannelInfo;
 use native_dialog::FileDialog;
 use std::fs::File;
 use std::io::Write;
 
+pub struct ConstConfig {
+    sync_point_threashold: f64,
+    web_interface_bind: &'static str,
+    cli_enabled: bool,
+    arudino_hz: usize,
+    virt_channel_count: usize,
+    arduino_hz_tolerence: f32
+}
+impl ConstConfig {
+    pub fn get_config() -> Self {
+        ConstConfig {
+            sync_point_threashold: 3.5,
+            web_interface_bind: "http://localhost:8000",
+            cli_enabled: true,
+            arudino_hz: 12000,
+            virt_channel_count: 20,
+            arduino_hz_tolerence: 0.2
+        }
+    }
+}
+
 #[actix_web::main]
 async fn main() -> Result<()> {
     std::env::set_var("RUST_LOG", "actix_web=error,pico=error");
     env_logger::init();
+    let const_config = ConstConfig::get_config();
 
     // Setup actix webserver
     let state = web::Data::new(Mutex::new(AppState::new(DeviceInfo {
@@ -59,7 +80,7 @@ async fn main() -> Result<()> {
             .app_data(state2.clone())
             .wrap(middleware::Logger::default())
     })
-    .bind("127.0.0.1:8000")?;
+    .bind(const_config.web_interface_bind)?;
 
     // Initialize picoscope
     let enumerator = DeviceEnumerator::with_resolution(cache_resolution());
@@ -104,7 +125,11 @@ async fn main() -> Result<()> {
     let start_text = format!(
         "{} | {}",
         style("STARTED STREAMING").blue().bold(),
-        style("Control panel at http://localhost:8000").green()
+        style(format!(
+            "Control panel at {}",
+            const_config.web_interface_bind
+        ))
+        .green()
     );
 
     terminal
@@ -115,89 +140,97 @@ async fn main() -> Result<()> {
             style("~".repeat(start_text.len())).blue()
         ))
         .unwrap();
-    loop {
-        // let _ = io::stdin().read(&mut [0u8]).unwrap();
-
-        let cli_options = &[
-            "Status",
-            if recording_cache {
-                "Stop Recording"
-            } else {
-                "Start Recording"
-            },
-            "Save Data without stopping",
-            "Start Example AI",
-            "Clear Memory",
-            "Exit",
-        ];
-
-        let cli_selection = Select::with_theme(&better_theme())
-            .with_prompt(&format!(
-                "{} {}",
-                style(if recording_cache {
-                    style("Recording!").green()
+    if const_config.cli_enabled {
+        loop {
+            let cli_options = &[
+                "Status",
+                if recording_cache {
+                    "Stop Recording"
                 } else {
-                    style("Not Recording").red()
-                })
-                .underlined()
-                .bold(),
-                style("Send a command in the console").green()
-            ))
-            .default(0)
-            .items(cli_options)
-            .interact()
-            .unwrap();
+                    "Start Recording"
+                },
+                "Save Data without stopping",
+                "Start Example AI",
+                "Clear Memory",
+                "Exit",
+            ];
 
-        match cli_options[cli_selection] {
-            "Status" => {
-                print_stats(&state.clone());
-            }
-            "Stop Recording" => {
-                let cli_selection = Input::with_theme(&better_theme())
-                    .default(String::from("untitled_run"))
-                    .interact()
-                    .unwrap();
-                write_data(
-                    state.clone(),
-                    Some(format!(
-                        "{}_{}",
-                        Local::now().format("%F_%T"),
-                        cli_selection
-                    )),
-                );
-                recording_cache = false;
-                let mut unlocked_state = state.lock();
-                unlocked_state.recording = false;
-                drop(unlocked_state);
-            }
-            "Start Recording" => {
-                // Start Stream
-                terminal
-                    .write_line(&format!("{}", style("Resuming").green()))
-                    .unwrap();
-                recording_cache = true;
-                let mut unlocked_state = state.lock();
-                unlocked_state.recording = true;
-                drop(unlocked_state);
-            }
-            "Save Data without stopping" => write_data(state.clone(), None),
-            "Clear Memory" => { let _ = clear_and_get_memory(state.clone(),true);},
-            "Start Example AI" => {
-                initialize_example_classification(state.clone());
-            }
-            "Exit" => {
-                streaming_device.stop();
-                return Ok(());
-            }
+            let cli_selection = Select::with_theme(&better_theme())
+                .with_prompt(&format!(
+                    "{} {}",
+                    style(if recording_cache {
+                        style("Recording!").green()
+                    } else {
+                        style("Not Recording").red()
+                    })
+                    .underlined()
+                    .bold(),
+                    style("Send a command in the console").green()
+                ))
+                .default(0)
+                .items(cli_options)
+                .interact()
+                .unwrap();
 
-            _ => {
-                println!("Unimplemented Selection!")
+            match cli_options[cli_selection] {
+                "Status" => {
+                    print_stats(&state.clone());
+                }
+                "Stop Recording" => {
+                    let cli_selection = Input::with_theme(&better_theme())
+                        .default(String::from("untitled_run"))
+                        .interact()
+                        .unwrap();
+                    write_data(
+                        state.clone(),
+                        Some(format!(
+                            "{}_{}",
+                            Local::now().format("%F_%T"),
+                            cli_selection
+                        )),
+                    );
+                    recording_cache = false;
+                    let mut unlocked_state = state.lock();
+                    unlocked_state.recording = false;
+                    drop(unlocked_state);
+                }
+                "Start Recording" => {
+                    // Start Stream
+                    terminal
+                        .write_line(&format!("{}", style("Resuming").green()))
+                        .unwrap();
+                    recording_cache = true;
+                    let mut unlocked_state = state.lock();
+                    unlocked_state.recording = true;
+                    drop(unlocked_state);
+                }
+                "Save Data without stopping" => write_data(state.clone(), None),
+                "Clear Memory" => {
+                    let _ = clear_and_get_memory(state.clone(), true);
+                }
+                "Start Example AI" => {
+                    initialize_example_classification(state.clone());
+                }
+                "Exit" => {
+                    streaming_device.stop();
+                    return Ok(());
+                }
+
+                _ => {
+                    println!("Unimplemented Selection!")
+                }
             }
         }
+    } else {
+        // CLI disabled (mode used for debug output)
+        println!("Press enter to stop");
+
+        let _ = io::stdin().read(&mut [0u8]).unwrap();
+
+        streaming_device.stop();
+        return Ok(());
     }
 }
-
-
 
 fn write_data(state: web::Data<Mutex<AppState>>, defaults: Option<String>) {
     let cwd = std::env::current_dir().unwrap();
