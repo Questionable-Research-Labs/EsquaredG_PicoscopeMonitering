@@ -31,22 +31,24 @@ use std::fs::File;
 use std::io::Write;
 
 pub struct ConstConfig {
-    sync_point_threashold: f64,
+    sync_point_threshold: f64,
     web_interface_bind: &'static str,
     cli_enabled: bool,
-    arudino_hz: usize,
+    arduino_hz: usize,
     virt_channel_count: usize,
-    arduino_hz_tolerence: f32
+    arduino_hz_tolerance: f32,
+    virt_channel_noise_threshold: f64,
 }
 impl ConstConfig {
     pub fn get_config() -> Self {
         ConstConfig {
-            sync_point_threashold: 3.5,
+            sync_point_threshold: 3.5,
             web_interface_bind: "http://localhost:8000",
             cli_enabled: true,
-            arudino_hz: 12000,
+            arduino_hz: 12000,
             virt_channel_count: 20,
-            arduino_hz_tolerence: 0.2
+            arduino_hz_tolerance: 0.2,
+            virt_channel_noise_threshold: 0.5,
         }
     }
 }
