@@ -1,10 +1,8 @@
 use crate::ConstConfig;
 
-use core::sync;
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Add};
 
 use pico_sdk::prelude::PicoChannel;
-use serde::Serialize;
 
 pub type VirtChannel = usize;
 pub type VirtSamples = HashMap<VirtChannel, f64>;
@@ -26,7 +24,7 @@ pub fn split_into_virt_channels(
     picoscope_sample_speed: u64,
 ) -> Result<Vec<VirtSamples>, VirtChannelError> {
     let const_config = ConstConfig::get_config();
-    let virtual_samples: Vec<VirtSamples> = vec![];
+    let final_virtual_samples: Vec<VirtSamples> = vec![];
     let mut i = 0;
 
     // Estimate samples per arudino switch
@@ -42,20 +40,23 @@ pub fn split_into_virt_channels(
     }
 
     // Determine points to extract from data, and extracts an averaged result
-    let virt_channel_samples: HashMap<PicoChannel, Vec<(VirtChannel, f64)>> = HashMap::new();
+    let virt_channel_samples: HashMap<PicoChannel, Vec<VirtSamples>> = HashMap::new();
     for (channel, data) in sync_pulses {
         virt_channel_samples.insert(
             channel,
             determine_virt_channel_samples(
                 &sync_pulses[&channel],
                 const_config.virt_channel_count,
-                &raw_data,
+                &raw_data[&channel].1,
             ),
         );
     }
     // Flatten Pico channels into Virt Channels
+    for (channel, data) in virt_channel_samples {
+        final_virtual_samples.extend(data);
+    }
 
-    return Ok(virtual_samples);
+    return Ok(final_virtual_samples);
 }
 
 /// Takes Picoscope data and determines the center of all the sync pulses
@@ -107,8 +108,8 @@ fn determine_virt_channel_samples(
     sync_points: &Vec<usize>,
     virt_channel_count: usize,
     full_data: &Vec<f64>,
-) -> Vec<(VirtChannel, f64)> {
-    let mut virt_channel_samples: Vec<(VirtChannel, f64)> = vec![];
+) -> Vec<(VirtSamples)> {
+    let mut virt_channel_samples: Vec<VirtSamples> = vec![];
     let mut cumulative_diff: usize = 0;
 
     // Find spacing for data points in between sync points
@@ -119,10 +120,11 @@ fn determine_virt_channel_samples(
         let diff = sync_points[round - 1] - pulse_index;
         cumulative_diff += diff;
         let spacing = diff / virt_channel_count;
+        virt_channel_samples.push(HashMap::new());
         // loop through virt channels
         for i in 0..virt_channel_count {
             let virt_channel_index = pulse_index + spacing * (i + 1);
-            virt_channel_samples.push((i, get_average_sample(&virt_channel_index,&full_data,&spacing)))
+            virt_channel_samples.last_mut().unwrap().insert(i, get_average_sample(&virt_channel_index,&full_data,&spacing));
         }
     }
 
@@ -136,14 +138,17 @@ fn determine_virt_channel_samples(
 /// Takes a fancy average of the sampled data
 fn get_average_sample(index: &usize,full_dataset: &Vec<f64>,width_of_channel: &usize) -> f64 {
     let width_of_average: usize = width_of_channel/3;
-    let samples: Vec[f64] = full_dataset[index-width_of_average..(index+width_of_average+1)].to_vec().sort();
+    let mut samples: Vec<f64> = full_dataset[index-width_of_average..(index+width_of_average+1)].to_vec();
+    // Can't use default .sort() because rust small brain with floats
+    samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-    // Haven't done statistics properly yet, so here goes
+    // Haven't done statistics properly yet, so here goes...
     let median = samples[samples.len()/2]; // Sensitive to noise, insensitive to skews
-    let mean = samples.iter().sum::<i32>() as f32 / numbers.len() as f32; // Sensitive to skews, insensitive to noise
+    let mean: f64 = samples.iter().fold(0.0, Add::add) as f64 / samples.len() as f64; // Sensitive to skews, insensitive to noise
 
     // So we combine them, if the mean is too far off to not be skewed, then we use the median
-    if ((median-mean)/median).check_range(-0.1..0.1) {
+    let percent_dif_averages = (median-mean)/median;
+    if -0.1 < percent_dif_averages && percent_dif_averages < 0.1 {
         return mean
     } else {
         return median
