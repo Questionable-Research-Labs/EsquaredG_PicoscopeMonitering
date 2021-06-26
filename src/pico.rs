@@ -1,14 +1,21 @@
-use crate::{app::state::AppState};
-use actix_web::web;
+use crate::{
+    app::state::AppState, virt_channels::split_into_virt_channels, write_data, ConstConfig,
+};
+use actix_web::web::{self, Data};
 use anyhow::{anyhow, Result};
+use chrono::Local;
 use console::{style, Style};
 use dialoguer::{theme::ColorfulTheme, Select};
-use parking_lot::Mutex;
+use futures::lock;
+use parking_lot::{Mutex, RawMutex};
 use pico_sdk::prelude::*;
 use procinfo::pid::statm_self;
 use signifix::metric;
+use tokio::pin;
 
+use core::f64;
 use std::{
+    borrow::Borrow,
     collections::{HashMap, VecDeque},
     convert::TryFrom,
     iter::Iterator,
@@ -302,7 +309,7 @@ impl NewDataHandler for CaptureStats {
             // println!("Data Len {:?}",data);
 
             for channel in data.clone() {
-                let key = channel.1.to_string();
+                let key = channel.0;
 
                 (*state_unlocked
                     .voltage_stream
@@ -318,8 +325,59 @@ impl NewDataHandler for CaptureStats {
         }
 
         state_unlocked.streaming_speed = self.rate_calc.get_value(event.length);
+
+        let state = self.state.clone();
+
+        pin! {
+            let _fut = split_data(state);
+        }
+
         drop(state_unlocked);
         // println!("Time taking for data collection is {:?} ms",Instant::now()-start);
+    }
+}
+
+async fn split_data(state: web::Data<Mutex<AppState>>) {
+    let mut locked_state = state.lock();
+    let pico_sped = locked_state.streaming_speed;
+    let arduino_hz = ConstConfig::get_config().arduino_hz;
+    let mut channels_block = HashMap::new();
+
+    for (channel, data) in locked_state.voltage_stream.iter_mut() {
+        while data.len() > arduino_hz {
+            let block: Vec<f64> = data.drain(0..arduino_hz).collect();
+            channels_block
+                .entry(channel.to_owned())
+                .or_insert_with(|| vec![])
+                .push(block);
+        }
+    }
+
+    drop(locked_state);
+
+    let mut map_to_be_processed = vec![];
+
+    let channels: Vec<PicoChannel> = channels_block.keys().map(|a| a.to_owned()).collect();
+
+    if channels.is_empty() {
+        return;
+    }
+
+    for i in 0..channels_block.get(&channels[0]).unwrap().len() {
+        let mut blocks = HashMap::new();
+
+        for (a, vals) in channels_block.iter() {
+            blocks.insert(a.to_owned(), vals[i].to_owned());
+        }
+
+        map_to_be_processed.push(blocks);
+    }
+
+    for a in map_to_be_processed.iter() {
+        let data = match split_into_virt_channels(&a, pico_sped) {
+            Ok(data) => write_data(data, Some(format!("{}", Local::now().format("%F_%T"),))),
+            Err(_) => todo!(),
+        };
     }
 }
 
@@ -428,18 +486,25 @@ pub fn print_stats(state: &web::Data<Mutex<AppState>>) {
     );
     drop(unlocked_state)
 }
-pub fn clear_and_get_memory(state: web::Data<Mutex<AppState>>,completely_clear: bool) -> HashMap<String, VecDeque<f64>> {
+pub fn clear_and_get_memory(
+    state: web::Data<Mutex<AppState>>,
+    completely_clear: bool,
+) -> HashMap<PicoChannel, VecDeque<f64>> {
     let mut state_unlocked = state.lock();
-    let voltages: HashMap<String, VecDeque<f64>> = state_unlocked.voltage_queue.clone();
+    let voltages = state_unlocked.voltage_queue.clone();
     if completely_clear {
         state_unlocked.voltage_queue.clear();
         state_unlocked.voltage_stream.clear();
     } else {
         for channel in voltages.keys() {
-            state_unlocked.voltage_queue.get_mut(channel).unwrap().clear()
+            state_unlocked
+                .voltage_queue
+                .get_mut(channel)
+                .unwrap()
+                .clear()
         }
     }
-    
+
     drop(state_unlocked);
-    return voltages
+    return voltages;
 }

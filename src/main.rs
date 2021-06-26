@@ -23,7 +23,7 @@ use crate::{
 };
 
 use parking_lot::Mutex;
-use std::{io,io::prelude::Read, sync::Arc};
+use std::{collections::HashMap, io, io::prelude::Read, sync::Arc};
 
 use crate::app::state::ChannelInfo;
 use native_dialog::FileDialog;
@@ -73,10 +73,7 @@ async fn main() -> Result<()> {
             .service(index)
             .service(
                 // All /api routes
-                web::scope("/api")
-                    .service(get_data)
-                    .service(check_alive)
-                    .service(device_info),
+                web::scope("/api").service(check_alive).service(device_info),
             )
             .service(actix_files::Files::new("/", "./static"))
             .app_data(state2.clone())
@@ -151,7 +148,6 @@ async fn main() -> Result<()> {
                 } else {
                     "Start Recording"
                 },
-                "Save Data without stopping",
                 "Start Example AI",
                 "Clear Memory",
                 "Exit",
@@ -183,14 +179,7 @@ async fn main() -> Result<()> {
                         .default(String::from("untitled_run"))
                         .interact()
                         .unwrap();
-                    write_data(
-                        state.clone(),
-                        Some(format!(
-                            "{}_{}",
-                            Local::now().format("%F_%T"),
-                            cli_selection
-                        )),
-                    );
+
                     recording_cache = false;
                     let mut unlocked_state = state.lock();
                     unlocked_state.recording = false;
@@ -206,7 +195,6 @@ async fn main() -> Result<()> {
                     unlocked_state.recording = true;
                     drop(unlocked_state);
                 }
-                "Save Data without stopping" => write_data(state.clone(), None),
                 "Clear Memory" => {
                     let _ = clear_and_get_memory(state.clone(), true);
                 }
@@ -234,7 +222,7 @@ async fn main() -> Result<()> {
     }
 }
 
-fn write_data(state: web::Data<Mutex<AppState>>, defaults: Option<String>) {
+fn write_data(state: Vec<HashMap<usize, f64>>, defaults: Option<String>) {
     let cwd = std::env::current_dir().unwrap();
     let terminal = Term::stdout();
     let save_path;
@@ -297,19 +285,20 @@ fn write_data(state: web::Data<Mutex<AppState>>, defaults: Option<String>) {
         Ok(a) => a,
     };
 
+    let headers = (0..ConstConfig::get_config().virt_channel_count)
+        .map(|e| format!("{}", e))
+        .collect::<Vec<String>>();
+
     let mut writer = csv::Writer::from_writer(vec![]);
 
-    let state_locked = state.lock();
-    writer
-        .write_record(&[format!("channel"), format!("voltage")])
-        .unwrap();
+    writer.write_record(headers.as_slice()).unwrap();
 
-    for (channel, voltages) in state_locked.voltage_stream.clone().into_iter() {
-        for voltage in voltages {
-            writer
-                .write_record(&[format!("{}", channel), format!("{}", voltage)])
-                .unwrap();
-        }
+    for channel in state.iter() {
+        let record = channel
+            .iter()
+            .map(|(_, a)| format!("{}", a))
+            .collect::<Vec<String>>();
+        writer.write_record(record.as_slice());
     }
 
     let csv_data = String::from_utf8(writer.into_inner().unwrap()).unwrap();

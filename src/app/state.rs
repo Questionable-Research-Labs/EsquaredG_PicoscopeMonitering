@@ -1,10 +1,10 @@
+use pico_sdk::common::PicoChannel;
 use serde::Serialize;
 
 use std::{
-    collections::{HashMap,VecDeque},
-    time::{Instant}
+    collections::{HashMap, VecDeque},
+    time::Instant,
 };
-
 
 #[derive(Clone, Serialize)]
 pub struct ChannelInfo {
@@ -26,9 +26,11 @@ impl ToString for DeviceInfo {
     }
 }
 
+#[derive(Clone)]
+
 pub struct AppState {
-    pub voltage_stream: HashMap<String,Vec<f64>>,
-    pub voltage_queue: HashMap<String,VecDeque<f64>>,
+    pub voltage_stream: HashMap<PicoChannel, Vec<f64>>,
+    pub voltage_queue: HashMap<PicoChannel, VecDeque<f64>>,
     pub device_info: DeviceInfo,
     pub streaming_speed: u64,
     pub start_time: Instant,
@@ -43,8 +45,7 @@ impl AppState {
             device_info,
             streaming_speed: 0u64,
             start_time: Instant::now(),
-            recording: false
+            recording: false,
         }
     }
-
 }

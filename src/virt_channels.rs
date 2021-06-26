@@ -20,7 +20,7 @@ pub enum VirtChannelError {
 // }
 
 pub fn split_into_virt_channels(
-    raw_data: &HashMap<PicoChannel, (usize, Vec<f64>, String)>,
+    raw_data: &HashMap<PicoChannel, Vec<f64>>,
     picoscope_sample_speed: u64,
 ) -> Result<Vec<VirtSamples>, VirtChannelError> {
     let const_config = ConstConfig::get_config();
@@ -32,7 +32,7 @@ pub fn split_into_virt_channels(
     // Find High points in data (indicateding a sync pulse)
     let mut sync_pulses: HashMap<PicoChannel, Vec<usize>> = HashMap::new();
     for (channel, data) in raw_data {
-        sync_pulses.insert(*channel,find_sync_pulse(&data.1, est_sample_width)) ;
+        sync_pulses.insert(*channel, find_sync_pulse(&data, est_sample_width));
     }
     if sync_pulses.len() < 2 {
         return Err(VirtChannelError::NotEnoughData);
@@ -46,7 +46,7 @@ pub fn split_into_virt_channels(
             determine_virt_channel_samples(
                 &data,
                 const_config.virt_channel_count,
-                &raw_data[&channel].1,
+                &raw_data[&channel],
             ),
         );
     }
@@ -94,7 +94,7 @@ fn find_sync_pulse(input: &Vec<f64>, est_sample_width: usize) -> Vec<usize> {
         ((est_sample_width as f32) * (1f32 - const_config.arduino_hz_tolerance)).round() as usize;
     for block in raw_block_points.clone() {
         if block.0 - block.1 > lower_sample_width {
-            let mid_point = block.0+((block.0 - block.1) / 2);
+            let mid_point = block.0 + ((block.0 - block.1) / 2);
             final_sync_points.push(mid_point)
         }
     }
@@ -116,14 +116,17 @@ fn determine_virt_channel_samples(
         .iter()
         .enumerate()
     {
-        let diff =  sync_points[round + 1] - pulse_index ;
+        let diff = sync_points[round + 1] - pulse_index;
         // cumulative_diff += diff;
         let spacing = diff / virt_channel_count;
         virt_channel_samples.push(HashMap::new());
         // loop through virt channels
         for i in 0..virt_channel_count {
             let virt_channel_index = pulse_index + spacing * (i + 1);
-            virt_channel_samples.last_mut().unwrap().insert(i, get_average_sample(&virt_channel_index,&full_data,&spacing));
+            virt_channel_samples.last_mut().unwrap().insert(
+                i,
+                get_average_sample(&virt_channel_index, &full_data, &spacing),
+            );
         }
     }
 
@@ -135,21 +138,24 @@ fn determine_virt_channel_samples(
 }
 
 /// Takes a fancy average of the sampled data
-fn get_average_sample(index: &usize,full_dataset: &Vec<f64>,width_of_channel: &usize) -> f64 {
+fn get_average_sample(index: &usize, full_dataset: &Vec<f64>, width_of_channel: &usize) -> f64 {
     let const_config = ConstConfig::get_config();
 
-    let width_of_average: usize = width_of_channel/3;
-    let mut samples: Vec<f64> = full_dataset[index-width_of_average..(index+width_of_average+1)].to_vec();
+    let width_of_average: usize = width_of_channel / 3;
+    let mut samples: Vec<f64> =
+        full_dataset[index - width_of_average..(index + width_of_average + 1)].to_vec();
     // Can't use default .sort() because rust small brain with floats
     samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
     // Haven't done statistics properly yet, so here goes...
     // If the range is too high (EG: Error), we use median, otherwise a mean would be more accurate
-    if samples.last().unwrap() - samples.first().unwrap() > const_config.virt_channel_noise_threshold {
+    if samples.last().unwrap() - samples.first().unwrap()
+        > const_config.virt_channel_noise_threshold
+    {
         // Sensitive to skews, insensitive to noise
         samples.iter().fold(0.0, Add::add) as f64 / samples.len() as f64
     } else {
         // Sensitive to noise, insensitive to skews
-        samples[samples.len()/2]
+        samples[samples.len() / 2]
     }
 }
