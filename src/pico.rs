@@ -11,7 +11,6 @@ use parking_lot::{Mutex, RawMutex};
 use pico_sdk::prelude::*;
 use procinfo::pid::statm_self;
 use signifix::metric;
-use tokio::pin;
 
 use core::f64;
 use std::{
@@ -21,6 +20,7 @@ use std::{
     iter::Iterator,
     sync::Arc,
     time::{Duration, Instant},
+    thread
 };
 
 pub fn better_theme() -> ColorfulTheme {
@@ -322,22 +322,25 @@ impl NewDataHandler for CaptureStats {
                     .or_insert_with(|| VecDeque::new()))
                 .extend(channel.2.clone().into_iter());
             }
+
+            let state = self.state.clone();
+
+            thread::spawn(move || {
+                split_data(state);
+            });
         }
 
         state_unlocked.streaming_speed = self.rate_calc.get_value(event.length);
 
-        let state = self.state.clone();
 
-        pin! {
-            let _fut = split_data(state);
-        }
+        
 
         drop(state_unlocked);
         // println!("Time taking for data collection is {:?} ms",Instant::now()-start);
     }
 }
 
-async fn split_data(state: web::Data<Mutex<AppState>>) {
+fn split_data(state: web::Data<Mutex<AppState>>) {
     let mut locked_state = state.lock();
     let pico_sped = locked_state.streaming_speed;
     let arduino_hz = ConstConfig::get_config().arduino_hz;

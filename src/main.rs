@@ -43,7 +43,7 @@ impl ConstConfig {
     pub fn get_config() -> Self {
         ConstConfig {
             sync_point_threshold: 3.5,
-            web_interface_bind: "http://localhost:8000",
+            web_interface_bind: "localhost:8000",
             cli_enabled: true,
             arduino_hz: 12000,
             virt_channel_count: 20,
@@ -67,7 +67,7 @@ async fn main() -> Result<()> {
     })));
 
     let state2 = state.clone();
-
+    println!("Starting Webserver");
     let web_server = HttpServer::new(move || {
         App::new()
             .service(index)
