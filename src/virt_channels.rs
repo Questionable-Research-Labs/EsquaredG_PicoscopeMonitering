@@ -7,6 +7,7 @@ use pico_sdk::prelude::PicoChannel;
 pub type VirtChannel = usize;
 pub type VirtSamples = HashMap<VirtChannel, f64>;
 
+#[derive(Debug)]
 pub enum VirtChannelError {
     NotEnoughData,
 }

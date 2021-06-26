@@ -374,9 +374,14 @@ async fn split_data(state: web::Data<Mutex<AppState>>) {
     }
 
     for a in map_to_be_processed.iter() {
-        let data = match split_into_virt_channels(&a, pico_sped) {
+        match split_into_virt_channels(&a, pico_sped) {
             Ok(data) => write_data(data, Some(format!("{}", Local::now().format("%F_%T"),))),
-            Err(_) => todo!(),
+            Err(err) => match err {
+                crate::virt_channels::VirtChannelError::NotEnoughData => {
+                    eprintln!("Well, were fucking stupid, here error: {:?}", err);
+                    continue;
+                }
+            },
         };
     }
 }
