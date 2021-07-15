@@ -35,8 +35,10 @@ pub fn split_into_virt_channels(
     for (channel, data) in raw_data {
         sync_pulses.insert(*channel, find_sync_pulse(&data, est_sample_width));
     }
-    if sync_pulses.len() < 2 {
-        return Err(VirtChannelError::NotEnoughData);
+    for (_, data) in sync_pulses.clone() {
+        if data.len() < 2 {
+            return Err(VirtChannelError::NotEnoughData);
+        }
     }
 
     // Determine points to extract from data, and extracts an averaged result
@@ -72,34 +74,44 @@ fn find_sync_pulse(input: &Vec<f64>, est_sample_width: usize) -> Vec<usize> {
             elevated_points.push(index)
         }
     }
+    println!("\nElevated Points {} vs points {}",elevated_points.len(),input.len());
+    if elevated_points.len() > 0 {
+        println!("jmm")
+    }
 
-    // Classifiy points into blocks
+    // Classify points into blocks
     let mut raw_block_points: Vec<(usize, usize)> = vec![];
     let mut current_block: (usize, usize) = (0, 0); // (start,end)
     let upper_sample_width =
         ((est_sample_width as f32) * (1f32 + const_config.arduino_hz_tolerance)).round() as usize;
     for point in elevated_points.iter() {
         if point - current_block.0 > upper_sample_width {
+            if current_block.1 < current_block.0 {
+                println!("What...");
+                println!("block 1 {}, block 0 {}",current_block.1, current_block.0 )
+            }
             raw_block_points.push(current_block);
-            current_block.0 = point.clone();
+            current_block = (point.clone(),point.clone());
         } else {
             current_block.1 = point.clone();
         }
     }
-    raw_block_points.push(current_block);
-
     // Scan and find midpoints of good blocks
-    // Algerithm is jank so it either creates an empty block at start or an empty one, so we remove it
+    // Algorithm is jank so it either creates an empty block at start or an empty one, so we remove it
     raw_block_points.remove(0);
     let lower_sample_width =
         ((est_sample_width as f32) * (1f32 - const_config.arduino_hz_tolerance)).round() as usize;
     for block in raw_block_points.clone() {
-        if block.0 - block.1 > lower_sample_width {
-            let mid_point = block.0 + ((block.0 - block.1) / 2);
-            final_sync_points.push(mid_point)
+        if block.1 - block.0 > lower_sample_width {
+            let mid_point = block.0 + ((block.1-block.0) / 2);
+            final_sync_points.push(mid_point);
+        } else {
+            println!("Found bad block from noise {} ",est_sample_width)
         }
     }
-
+    if final_sync_points.len() > 1 {
+        println!("SUCCESS")
+    }
     return final_sync_points;
 }
 

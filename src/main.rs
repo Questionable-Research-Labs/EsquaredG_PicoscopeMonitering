@@ -42,12 +42,12 @@ pub struct ConstConfig {
 impl ConstConfig {
     pub fn get_config() -> Self {
         ConstConfig {
-            sync_point_threshold: 3.5,
+            sync_point_threshold: 3.05,
             web_interface_bind: "localhost:8000",
-            cli_enabled: true,
-            arduino_hz: 12000,
+            cli_enabled: false,
+            arduino_hz: 14700,
             virt_channel_count: 20,
-            arduino_hz_tolerance: 0.2,
+            arduino_hz_tolerance: 0.5,
             virt_channel_noise_threshold: 0.5,
         }
     }
@@ -183,6 +183,8 @@ async fn main() -> Result<()> {
                     recording_cache = false;
                     let mut unlocked_state = state.lock();
                     unlocked_state.recording = false;
+                    // write_data(unlocked_state.voltage_queue, Some(cli_selection));
+
                     drop(unlocked_state);
                 }
                 "Start Recording" => {
@@ -212,6 +214,12 @@ async fn main() -> Result<()> {
             }
         }
     } else {
+        terminal
+            .write_line(&format!("{}", style("Resuming").green()))
+            .unwrap();
+        let mut unlocked_state = state.lock();
+        unlocked_state.recording = true;
+                    drop(unlocked_state);
         // CLI disabled (mode used for debug output)
         println!("Press enter to stop");
 

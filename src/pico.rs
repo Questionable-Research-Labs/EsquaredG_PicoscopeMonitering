@@ -343,12 +343,11 @@ impl NewDataHandler for CaptureStats {
 fn split_data(state: web::Data<Mutex<AppState>>) {
     let mut locked_state = state.lock();
     let pico_sped = locked_state.streaming_speed;
-    let arduino_hz = ConstConfig::get_config().arduino_hz;
     let mut channels_block = HashMap::new();
 
     for (channel, data) in locked_state.voltage_stream.iter_mut() {
-        while data.len() > arduino_hz {
-            let block: Vec<f64> = data.drain(0..arduino_hz).collect();
+        while data.len() > pico_sped as usize {
+            let block: Vec<f64> = data.drain(0..pico_sped as usize).collect();
             channels_block
                 .entry(channel.to_owned())
                 .or_insert_with(|| vec![])
