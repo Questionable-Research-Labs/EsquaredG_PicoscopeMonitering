@@ -42,12 +42,12 @@ pub struct ConstConfig {
 impl ConstConfig {
     pub fn get_config() -> Self {
         ConstConfig {
-            sync_point_threshold: 3.05,
+            sync_point_threshold: 4.0,
             web_interface_bind: "localhost:8000",
             cli_enabled: false,
             arduino_hz: 14700,
             virt_channel_count: 20,
-            arduino_hz_tolerance: 0.5,
+            arduino_hz_tolerance: 0.8,
             virt_channel_noise_threshold: 0.5,
         }
     }
@@ -293,20 +293,26 @@ fn write_data(state: Vec<HashMap<usize, f64>>, defaults: Option<String>) {
         Ok(a) => a,
     };
 
-    let headers = (0..ConstConfig::get_config().virt_channel_count)
-        .map(|e| format!("{}", e))
-        .collect::<Vec<String>>();
+    // let headers = (0..ConstConfig::get_config().virt_channel_count)
+    //     .map(|e| format!("{}", e))
+    //     .collect::<Vec<String>>();
 
     let mut writer = csv::Writer::from_writer(vec![]);
 
-    writer.write_record(headers.as_slice()).unwrap();
+    // writer.write_record(headers.as_slice()).unwrap();
 
     for channel in state.iter() {
-        let record = channel
+        // Sort Channel Hashmap
+        let mut channels_vec: Vec<(&usize,&f64)> = channel
             .iter()
+            .collect();
+        channels_vec.sort_by(|x,y| x.0.cmp(&y.0));
+        // Remove channel key, to create a vec of channels 0..19
+        let record = channels_vec.iter()
             .map(|(_, a)| format!("{}", a))
             .collect::<Vec<String>>();
-        writer.write_record(record.as_slice());
+        // Write channel vector
+        writer.write_record(record.as_slice()).unwrap();
     }
 
     let csv_data = String::from_utf8(writer.into_inner().unwrap()).unwrap();

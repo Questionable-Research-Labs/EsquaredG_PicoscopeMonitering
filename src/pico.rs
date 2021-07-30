@@ -382,6 +382,9 @@ fn split_data(state: web::Data<Mutex<AppState>>) {
                 crate::virt_channels::VirtChannelError::NotEnoughData => {
                     eprintln!("Well, were fucking stupid, here error: {:?}", err);
                     continue;
+                },
+                crate::virt_channels::VirtChannelError::NoSyncPulse => {
+                    eprintln!("Can't find synchronization pulse!!!")
                 }
             },
         };

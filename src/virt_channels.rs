@@ -7,9 +7,17 @@ use pico_sdk::prelude::PicoChannel;
 pub type VirtChannel = usize;
 pub type VirtSamples = HashMap<VirtChannel, f64>;
 
+use console::{style, Term};
+use chrono::prelude::Local;
+
+
+use std::fs::File;
+use std::io::Write;
+
 #[derive(Debug)]
 pub enum VirtChannelError {
     NotEnoughData,
+    NoSyncPulse,
 }
 
 // fn generate_virtal_sample_layout() -> VirtSamples {
@@ -33,7 +41,11 @@ pub fn split_into_virt_channels(
     // Find High points in data (indicateding a sync pulse)
     let mut sync_pulses: HashMap<PicoChannel, Vec<usize>> = HashMap::new();
     for (channel, data) in raw_data {
-        sync_pulses.insert(*channel, find_sync_pulse(&data, est_sample_width));
+
+        match find_sync_pulse(&data, est_sample_width) {
+            Ok(pulses) => sync_pulses.insert(*channel, pulses),
+            Err(err) => return Err(err),
+        };
     }
     for (_, data) in sync_pulses.clone() {
         if data.len() < 2 {
@@ -62,7 +74,10 @@ pub fn split_into_virt_channels(
 }
 
 /// Takes Picoscope data and determines the center of all the sync pulses
-fn find_sync_pulse(input: &Vec<f64>, est_sample_width: usize) -> Vec<usize> {
+fn find_sync_pulse(
+    input: &Vec<f64>,
+    est_sample_width: usize,
+) -> Result<Vec<usize>, VirtChannelError> {
     let const_config = ConstConfig::get_config();
 
     let mut final_sync_points: Vec<usize> = vec![];
@@ -73,10 +88,17 @@ fn find_sync_pulse(input: &Vec<f64>, est_sample_width: usize) -> Vec<usize> {
         if *data_point > const_config.sync_point_threshold {
             elevated_points.push(index)
         }
+        if *data_point > 5f64 {
+            println!("WHAT {}",*data_point);
+        }
     }
-    println!("\nElevated Points {} vs points {}",elevated_points.len(),input.len());
-    if elevated_points.len() > 0 {
-        println!("jmm")
+    println!(
+        "\nElevated Points {} vs points {}",
+        elevated_points.len(),
+        input.len()
+    );
+    if elevated_points.len() == 0 {
+        return Err(VirtChannelError::NoSyncPulse);
     }
 
     // Classify points into blocks
@@ -88,10 +110,10 @@ fn find_sync_pulse(input: &Vec<f64>, est_sample_width: usize) -> Vec<usize> {
         if point - current_block.0 > upper_sample_width {
             if current_block.1 < current_block.0 {
                 println!("What...");
-                println!("block 1 {}, block 0 {}",current_block.1, current_block.0 )
+                println!("block 1 {}, block 0 {}", current_block.1, current_block.0)
             }
             raw_block_points.push(current_block);
-            current_block = (point.clone(),point.clone());
+            current_block = (point.clone(), point.clone());
         } else {
             current_block.1 = point.clone();
         }
@@ -103,16 +125,13 @@ fn find_sync_pulse(input: &Vec<f64>, est_sample_width: usize) -> Vec<usize> {
         ((est_sample_width as f32) * (1f32 - const_config.arduino_hz_tolerance)).round() as usize;
     for block in raw_block_points.clone() {
         if block.1 - block.0 > lower_sample_width {
-            let mid_point = block.0 + ((block.1-block.0) / 2);
+            let mid_point = block.0 + ((block.1 - block.0) / 2);
             final_sync_points.push(mid_point);
         } else {
-            println!("Found bad block from noise {} ",est_sample_width)
+            println!("Found bad block from noise {} ", est_sample_width)
         }
     }
-    if final_sync_points.len() > 1 {
-        println!("SUCCESS")
-    }
-    return final_sync_points;
+    return Ok(final_sync_points);
 }
 
 /// Calculates the mid-point of all the virtual channels.
@@ -125,13 +144,15 @@ fn determine_virt_channel_samples(
     // let mut cumulative_diff: usize = 0;
 
     // Find spacing for data points in between sync points
-    for (round, pulse_index) in (&sync_points[0..(sync_points.len() - 1)])
+    for (round, pulse_index) in (&sync_points[0..(sync_points.len() - 2)])
         .iter()
         .enumerate()
     {
+        let samples: Vec<f64> = full_data[*pulse_index..sync_points[round + 1]].to_vec();
+        dump_data(samples);
         let diff = sync_points[round + 1] - pulse_index;
-        // cumulative_diff += diff;
-        let spacing = diff / virt_channel_count;
+        // There is the virt channel count + 1 in one diff
+        let spacing = diff / virt_channel_count+1;
         virt_channel_samples.push(HashMap::new());
         // loop through virt channels
         for i in 0..virt_channel_count {
@@ -156,7 +177,7 @@ fn get_average_sample(index: &usize, full_dataset: &Vec<f64>, width_of_channel: 
 
     let width_of_average: usize = width_of_channel / 3;
     let mut samples: Vec<f64> =
-        full_dataset[index - width_of_average..(index + width_of_average + 1)].to_vec();
+        full_dataset[(index - width_of_average)..(index + width_of_average + 1)].to_vec();
     // Can't use default .sort() because rust small brain with floats
     samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
@@ -170,5 +191,25 @@ fn get_average_sample(index: &usize, full_dataset: &Vec<f64>, width_of_channel: 
     } else {
         // Sensitive to noise, insensitive to skews
         samples[samples.len() / 2]
+
     }
+}
+
+fn dump_data(data: Vec<f64>) {
+    let cwd = std::env::current_dir().unwrap();
+
+    let save_path = cwd.join(format!("data_output/_Test_{}.csv", Local::now().format("%+")));
+    let mut file: File = File::create(save_path).unwrap();
+    let mut writer = csv::Writer::from_writer(vec![]);
+    for value in &data {
+        
+        writer.write_record( std::iter::once(value.clone().to_string())).unwrap();
+       
+
+    }
+    let csv_data = String::from_utf8(writer.into_inner().unwrap()).unwrap();
+    file.write_all(csv_data.as_bytes()).unwrap();
+    let mut samples = data.clone();
+    samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    // println!("{:?}",samples.iter().fold(0.0, Add::add) as f64 / samples.len() as f64);
 }
