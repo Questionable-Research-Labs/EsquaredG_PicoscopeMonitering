@@ -144,15 +144,18 @@ fn determine_virt_channel_samples(
     // let mut cumulative_diff: usize = 0;
 
     // Find spacing for data points in between sync points
+    // round = Index of the current element
+    // pulse_index = Index of the sync point in the full data set
     for (round, pulse_index) in (&sync_points[0..(sync_points.len() - 2)])
         .iter()
         .enumerate()
     {
         let samples: Vec<f64> = full_data[*pulse_index..sync_points[round + 1]].to_vec();
         dump_data(samples);
+        // The spacing between the two sync points
         let diff = sync_points[round + 1] - pulse_index;
         // There is the virt channel count + 1 in one diff
-        let spacing = diff / virt_channel_count+1;
+        let spacing = diff / (virt_channel_count+1);
         virt_channel_samples.push(HashMap::new());
         // loop through virt channels
         for i in 0..virt_channel_count {
@@ -184,7 +187,7 @@ fn get_average_sample(index: &usize, full_dataset: &Vec<f64>, width_of_channel: 
     // Haven't done statistics properly yet, so here goes...
     // If the range is too high (EG: Error), we use median, otherwise a mean would be more accurate
     if samples.last().unwrap() - samples.first().unwrap()
-        > const_config.virt_channel_noise_threshold
+        < const_config.virt_channel_noise_threshold
     {
         // Sensitive to skews, insensitive to noise
         samples.iter().fold(0.0, Add::add) as f64 / samples.len() as f64

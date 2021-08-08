@@ -42,11 +42,11 @@ pub struct ConstConfig {
 impl ConstConfig {
     pub fn get_config() -> Self {
         ConstConfig {
-            sync_point_threshold: 4.0,
+            sync_point_threshold: 3.5,
             web_interface_bind: "localhost:8000",
             cli_enabled: false,
             arduino_hz: 14700,
-            virt_channel_count: 20,
+            virt_channel_count: 4,
             arduino_hz_tolerance: 0.8,
             virt_channel_noise_threshold: 0.5,
         }
